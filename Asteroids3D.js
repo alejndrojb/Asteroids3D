@@ -101,7 +101,7 @@ export class Asteroids3D extends Scene {
         //
         // this.key_triggered_button("Right", ["d"], () => this.control.d = true,  "#6E6460",() => this.control.d = false);
 
-        this.key_triggered_button("Shoot", ["\ "], () => {
+        this.key_triggered_button("Shoot", [" "], () => {
 
         });
 

@@ -879,14 +879,14 @@ const Movement_Controls = defs.Movement_Controls =
             this.new_line();
             this.new_line();
 
-            this.key_triggered_button("Up", [" "], () => this.thrust[1] = -1, undefined, () => this.thrust[1] = 0);
-            this.key_triggered_button("Forward", ["w"], () => this.thrust[2] = 1, undefined, () => this.thrust[2] = 0);
+            this.key_triggered_button("Up", ["l"], () => this.thrust[1] = -1, undefined, () => this.thrust[1] = 0);
+            this.key_triggered_button("Forward", ["ArrowUp"], () => this.thrust[2] = 1, undefined, () => this.thrust[2] = 0);
             this.new_line();
-            this.key_triggered_button("Left", ["a"], () => this.thrust[0] = 1, undefined, () => this.thrust[0] = 0);
-            this.key_triggered_button("Back", ["s"], () => this.thrust[2] = -1, undefined, () => this.thrust[2] = 0);
-            this.key_triggered_button("Right", ["d"], () => this.thrust[0] = -1, undefined, () => this.thrust[0] = 0);
+            this.key_triggered_button("Left", ["ArrowLeft"], () => this.thrust[0] = 1, undefined, () => this.thrust[0] = 0);
+            this.key_triggered_button("Back", ["ArrowDown"], () => this.thrust[2] = -1, undefined, () => this.thrust[2] = 0);
+            this.key_triggered_button("Right", ["ArrowRight"], () => this.thrust[0] = -1, undefined, () => this.thrust[0] = 0);
             this.new_line();
-            this.key_triggered_button("Down", ["z"], () => this.thrust[1] = 1, undefined, () => this.thrust[1] = 0);
+            this.key_triggered_button("Down", ["m"], () => this.thrust[1] = 1, undefined, () => this.thrust[1] = 0);
 
             const speed_controls = this.control_panel.appendChild(document.createElement("span"));
             speed_controls.style.margin = "30px";
@@ -901,9 +901,9 @@ const Movement_Controls = defs.Movement_Controls =
             this.key_triggered_button("Roll left", [","], () => this.roll = 1, undefined, () => this.roll = 0);
             this.key_triggered_button("Roll right", ["."], () => this.roll = -1, undefined, () => this.roll = 0);
             this.new_line();
-            this.key_triggered_button("(Un)freeze mouse look around", ["f"], () => this.look_around_locked ^= 1, "#8B8885");
+            this.key_triggered_button("(Un)freeze mouse look around", ["h"], () => this.look_around_locked ^= 1, "#8B8885");
             this.new_line();
-            this.key_triggered_button("Go to world origin", ["r"], () => {
+            this.key_triggered_button("Go to world origin", ["o"], () => {
                 this.matrix().set_identity(4, 4);
                 this.inverse().set_identity(4, 4)
             }, "#8B8885");
