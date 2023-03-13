@@ -100,11 +100,7 @@ export class Asteroids3D extends Scene {
     this.lasers = [];
     this.max_asteroids = 10; // set the maximum number of asteroids on screen
 
-    this.initial_camera_location = Mat4.look_at(
-      vec3(0, 10, 20),
-      vec3(0, 0, 0),
-      vec3(0, 1, 0)
-    );
+    this.initial_camera_location = Mat4.look_at(vec3(25, 15, 50), vec3(25, 15, 0), vec3(0, 1, 0));
 
     this.top_camera_view = Mat4.look_at(
       vec3(0, 40, 10), // eye position (above view)
@@ -116,82 +112,58 @@ export class Asteroids3D extends Scene {
   draw_asteroids(context, program_state, transform) {}
 
   make_control_panel() {
-    // this.key_triggered_button("Up", ["w"], () => this.control.w = true,  "#6E6460",() => this.control.w = false);
-    //
-    // this.key_triggered_button("Left", ["a"], () => this.control.a = true,  "#6E6460",() => this.control.a = false);
-    //
-    // this.key_triggered_button("Down", ["s"], () => this.control.s = true,  "#6E6460",() => this.control.s = false);
-    //
-    // this.key_triggered_button("Right", ["d"], () => this.control.d = true,  "#6E6460",() => this.control.d = false);
-
-    this.key_triggered_button("Shoot", [" "], () => {});
-
+    this.key_triggered_button("Up", ["w"], () => this.game.changeDirection(DIRS.UP));
+    this.key_triggered_button("Left", ["a"], () => this.game.changeDirection(DIRS.LEFT));
+    this.key_triggered_button("Down", ["s"], () => this.game.changeDirection(DIRS.DOWN));
+    this.key_triggered_button("Right", ["d"], () => this.game.changeDirection(DIRS.RIGHT));
+    this.key_triggered_button("Shoot", [" "], () => this.game.shoot());
     this.key_triggered_button("Start", ["y"], () => {
       this.paused = false;
       this.begin = true;
     });
 
-    this.key_triggered_button(
-      "View Environment",
-      ["v"],
-      () => (this.attached = () => this.initial_camera_location)
-    );
+    this.key_triggered_button("View Environment", ["v"], () => (this.attached = () => this.initial_camera_location));
 
-    this.key_triggered_button(
-      "Switch to spaceship POV",
-      ["g"],
-      () => (this.attached = () => this.spaceship)
-    );
+    this.key_triggered_button("Switch to spaceship POV", ["g"], () => (this.attached = () => this.spaceship));
   }
 
   display(context, program_state) {
     if (!context.scratchpad.controls) {
-      this.children.push(
-        (context.scratchpad.controls = new defs.Movement_Controls())
-      );
       // Define the global camera and projection matrices, which are stored in program_state.
-      program_state.set_camera(this.top_camera_view);
+      program_state.set_camera(this.initial_camera_location);
     }
 
     const t = program_state.animation_time / 1000,
       dt = program_state.animation_delta_time / 1000; // Convert delta time to seconds
 
-    program_state.projection_transform = Mat4.perspective(
-      Math.PI / 4,
-      context.width / context.height,
-      1,
-      500
-    );
+    program_state.projection_transform = Mat4.perspective(Math.PI / 4, context.width / context.height, 1, 500);
 
-    program_state.lights = [
-      new Light(vec4(10, 10, 10, 1), color(1, 1, 1, 1), 100000),
-    ];
+    program_state.lights = [new Light(vec4(10, 10, 10, 1), color(1, 1, 1, 1), 100000)];
 
     let ship_transform = Mat4.identity();
     ship_transform = ship_transform.times(Mat4.translation(0, 0, 0));
-    this.shapes.spaceship.draw(
-      context,
-      program_state,
-      ship_transform,
-      this.materials.ship_metal
-    );
-    this.spaceship = Mat4.inverse(
-      ship_transform.times(Mat4.translation(0, 1, 5))
-    );
+    this.shapes.spaceship.draw(context, program_state, ship_transform, this.materials.ship_metal);
+    this.spaceship = Mat4.inverse(ship_transform.times(Mat4.translation(0, 1, 5)));
 
-    
     this.game.getAsteroids().forEach((asteroid) => {
-      let asteroid_transform = Mat4.identity().times(
-        Mat4.translation(asteroid.x * 2, asteroid.y * 2, asteroid.z * 2)
-      );
-      this.shapes.asteroid.draw(
-        context,
-        program_state,
-        asteroid_transform,
-        this.materials.asteroid_mat
-      );
+      let asteroid_transform = Mat4.identity()
+        .times(Mat4.translation(asteroid.x * 2, asteroid.y * 2, asteroid.z * 2))
+        .times(Mat4.rotation(0.625 * t, 0, 1, 1));
+      this.shapes.asteroid.draw(context, program_state, asteroid_transform, this.materials.asteroid_mat);
     });
 
+    // render enemies
+    this.game.getEnemies().forEach((enemy, idx) => {
+      let enemy_transform = Mat4.identity().times(
+        Mat4.translation(enemy.position.x * 2, enemy.position.y * 2, enemy.position.z * 2)
+      );
+      this.shapes.alienship.draw(
+        context,
+        program_state,
+        enemy_transform,
+        this.materials.ship_metal.override({ color: hex_color("#992828") })
+      );
+    });
     // let asteroid_transform = Mat4.identity(); // xmin: -20, xmax: 20, ymin: 0 ,ymax: 21, z = 0
     // asteroid_transform = asteroid_transform
     //   .times(Mat4.translation(0, 0, -19))
@@ -289,9 +261,7 @@ export class Asteroids3D extends Scene {
     // this.asteroid8 = asteroid8_transform;
 
     let aleinship_transform = Mat4.identity();
-    aleinship_transform = aleinship_transform
-      .times(Mat4.translation(-2, 0, -15))
-      .times(Mat4.rotation(60, 0, 1, 0));
+    aleinship_transform = aleinship_transform.times(Mat4.translation(-2, 0, -15)).times(Mat4.rotation(60, 0, 1, 0));
     this.shapes.alienship.draw(
       context,
       program_state,
@@ -434,19 +404,9 @@ class Gouraud_Shader extends Shader {
     // cache and send those.  They will be the same throughout this draw
     // call, and thus across each instance of the vertex shader.
     // Transpose them since the GPU expects matrices as column-major arrays.
-    const PCM = gpu_state.projection_transform
-      .times(gpu_state.camera_inverse)
-      .times(model_transform);
-    gl.uniformMatrix4fv(
-      gpu.model_transform,
-      false,
-      Matrix.flatten_2D_to_1D(model_transform.transposed())
-    );
-    gl.uniformMatrix4fv(
-      gpu.projection_camera_model_transform,
-      false,
-      Matrix.flatten_2D_to_1D(PCM.transposed())
-    );
+    const PCM = gpu_state.projection_transform.times(gpu_state.camera_inverse).times(model_transform);
+    gl.uniformMatrix4fv(gpu.model_transform, false, Matrix.flatten_2D_to_1D(model_transform.transposed()));
+    gl.uniformMatrix4fv(gpu.projection_camera_model_transform, false, Matrix.flatten_2D_to_1D(PCM.transposed()));
 
     // Omitting lights will show only the material color, scaled by the ambient term:
     if (!gpu_state.lights.length) return;
@@ -454,12 +414,8 @@ class Gouraud_Shader extends Shader {
     const light_positions_flattened = [],
       light_colors_flattened = [];
     for (let i = 0; i < 4 * gpu_state.lights.length; i++) {
-      light_positions_flattened.push(
-        gpu_state.lights[Math.floor(i / 4)].position[i % 4]
-      );
-      light_colors_flattened.push(
-        gpu_state.lights[Math.floor(i / 4)].color[i % 4]
-      );
+      light_positions_flattened.push(gpu_state.lights[Math.floor(i / 4)].position[i % 4]);
+      light_colors_flattened.push(gpu_state.lights[Math.floor(i / 4)].color[i % 4]);
     }
     gl.uniform4fv(gpu.light_positions_or_vectors, light_positions_flattened);
     gl.uniform4fv(gpu.light_colors, light_colors_flattened);

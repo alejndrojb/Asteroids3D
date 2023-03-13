@@ -3,12 +3,41 @@ export class Game {
   constructor() {
     // create a shallow copy of the initial position matrix
     this._matrix = POSITION_MATRIX.map((row) => [...row]);
+    this._enemies = this._getEnemies();
   }
 
-  //get x, y, z coordinates of the asteroids
+  // GETTERS
+  // movable characters
+  getEnemies() {
+    return this._enemies.map((enemy) => ({
+      ...enemy,
+      position: {
+        x: enemy.position.c,
+        y: enemy.position.r,
+        z: enemy.position.z,
+      }
+    }));
+  }
+
+  _getEnemies() {
+    // return { index in 2D array, initial direction}
+    return [
+      {
+        position: {
+          r: 10,
+          c: 10,
+          z: 0,
+        },
+        direction: DIRS.RIGHT,
+      },
+    ];
+  }
+
+  // asteroids
   getAsteroids() {
     let asteroidsPosition = [];
     // linearly go through 2D array
+    // get x, y, z coordinates of each asteroid
     this._matrix.forEach((row, r) => {
       row.forEach((obj, c) => {
         // parse out all asteroids
@@ -24,7 +53,6 @@ export class Game {
       });
     });
 
-    console.log(asteroidsPosition);
     return asteroidsPosition;
   }
 }
