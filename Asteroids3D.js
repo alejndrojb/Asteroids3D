@@ -123,7 +123,6 @@ export class Asteroids3D extends Scene {
     });
 
     this.key_triggered_button("View Environment", ["v"], () => (this.attached = () => this.initial_camera_location));
-
     this.key_triggered_button("Switch to spaceship POV", ["g"], () => (this.attached = () => this.spaceship));
   }
 
