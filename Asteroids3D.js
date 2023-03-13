@@ -1,5 +1,6 @@
-import {defs, tiny} from './examples/common.js';
+import { defs, tiny } from "./examples/common.js";
 import { Shape_From_File } from "./examples/obj-file-demo.js";
+import { Game, DIRS } from "./game.js";
 
 const {
   Vector,
@@ -19,200 +20,261 @@ const {
   Scene,
 } = tiny;
 
-function Asteroid(x,y,velocity) {
-    this.x = x;
-    this.y = y;
-    this.velocity = velocity;
+function Asteroid(x, y, velocity) {
+  this.x = x;
+  this.y = y;
+  this.velocity = velocity;
 }
 
-function Spaceship (x,y) {
-    this.x = x;
-    this.y = y;
+function Spaceship(x, y) {
+  this.x = x;
+  this.y = y;
 }
 
-function Laser (x,y, velocity)  {
-    this.x = x;
-    this.y = y;
-    this.velocity = velocity;
-}
-
-function spawn_asteroids (asteroids) {
-
+function Laser(x, y, velocity) {
+  this.x = x;
+  this.y = y;
+  this.velocity = velocity;
 }
 
 export class Asteroids3D extends Scene {
-    constructor() {
-        super();
-        // Load the model file:
+  constructor() {
+    super();
+    // Load the model file:
 
-        this.textures = {
-            metal: new Texture("assets/metal.jpg"),
-            asteroid: new Texture("assets/asteroid.png"),
-            background: new Texture("assets/background.png")
-        };
+    this.textures = {
+      metal: new Texture("assets/metal.jpg"),
+      asteroid: new Texture("assets/asteroid.png"),
+      background: new Texture("assets/background.png"),
+    };
 
-        this.shapes = {
-            spaceship: new Shape_From_File("assets/spaceship.obj"),
-            alienship: new Shape_From_File("assets/alienship.obj"),
-            asteroid: new defs.Subdivision_Sphere(2),
-            asteroid2: new defs.Subdivision_Sphere(2),
-            asteroid3: new defs.Subdivision_Sphere(2),
-            asteroid4: new defs.Subdivision_Sphere(2),
-            asteroid5: new defs.Subdivision_Sphere(2),
-            asteroid6: new defs.Subdivision_Sphere(2),
-            asteroid7: new defs.Subdivision_Sphere(2),
-            asteroid8: new defs.Subdivision_Sphere(2),
-            square: new defs.Square
-        };
+    this.shapes = {
+      spaceship: new Shape_From_File("assets/spaceship.obj"),
+      alienship: new Shape_From_File("assets/alienship.obj"),
+      asteroid: new defs.Subdivision_Sphere(2),
+      asteroid2: new defs.Subdivision_Sphere(2),
+      asteroid3: new defs.Subdivision_Sphere(2),
+      asteroid4: new defs.Subdivision_Sphere(2),
+      asteroid5: new defs.Subdivision_Sphere(2),
+      asteroid6: new defs.Subdivision_Sphere(2),
+      asteroid7: new defs.Subdivision_Sphere(2),
+      asteroid8: new defs.Subdivision_Sphere(2),
+      square: new defs.Square(),
+    };
 
-        const shader = new defs.Fake_Bump_Map(1);
+    const shader = new defs.Fake_Bump_Map(1);
 
-        this.materials = {
-            ship_metal: new Material(new Gouraud_Shader(),
-                {ambient: 0.4, diffusivity: 0.3, specularity: 0.7, color: hex_color("#4682B4"), texture: this.textures.metal}),
+    this.materials = {
+      ship_metal: new Material(new Gouraud_Shader(), {
+        ambient: 0.4,
+        diffusivity: 0.3,
+        specularity: 0.7,
+        color: hex_color("#4682B4"),
+        texture: this.textures.metal,
+      }),
 
-            asteroid_mat: new Material(shader,
-                {ambient: 0.4, diffusivity: 0.5, specularity: 0.2, color: hex_color("#808080"), texture: this.textures.asteroid})
-        };
+      asteroid_mat: new Material(shader, {
+        ambient: 0.4,
+        diffusivity: 0.5,
+        specularity: 0.2,
+        color: hex_color("#808080"),
+        texture: this.textures.asteroid,
+      }),
+    };
 
-        this.control = {};
-        this.start = true;
-        this.paused = true;
-        this.begin = false;
-        this.end = false;
-        this.time = 0;
-        this.control.w = false;
-        this.control.a = false;
-        this.control.s = false;
-        this.control.d = false;
-        this.control.space = false;
-        this.lives = 5;
-        this.lasers = [];
-        this.max_asteroids = 10; // set the maximum number of asteroids on screen
+    // initialize game logic
+    this.game = new Game();
 
+    this.control = {};
+    this.start = true;
+    this.paused = true;
+    this.begin = false;
+    this.end = false;
+    this.time = 0;
+    this.control.w = false;
+    this.control.a = false;
+    this.control.s = false;
+    this.control.d = false;
+    this.control.space = false;
+    this.lives = 5;
+    this.lasers = [];
+    this.max_asteroids = 10; // set the maximum number of asteroids on screen
 
-        this.initial_camera_location = Mat4.look_at(
-            vec3(0, 10, 20),
-            vec3(0, 0, 0),
-            vec3(0, 1, 0)
-        );
+    this.initial_camera_location = Mat4.look_at(vec3(25, 15, 50), vec3(25, 15, 0), vec3(0, 1, 0));
 
-        this.top_camera_view = Mat4.look_at(
-            vec3(0, 40, 10),  // eye position (above view)
-            vec3(0, 25, 0),     // look at the origin (the spaceship)
-            vec3(0, 10, 0)      // up direction
-        );
+    this.top_camera_view = Mat4.look_at(
+      vec3(0, 40, 10), // eye position (above view)
+      vec3(0, 25, 0), // look at the origin (the spaceship)
+      vec3(0, 10, 0) // up direction
+    );
+  }
 
+  draw_asteroids(context, program_state, transform) {}
+
+  make_control_panel() {
+    this.key_triggered_button("Up", ["w"], () => this.game.changeDirection(DIRS.UP));
+    this.key_triggered_button("Left", ["a"], () => this.game.changeDirection(DIRS.LEFT));
+    this.key_triggered_button("Down", ["s"], () => this.game.changeDirection(DIRS.DOWN));
+    this.key_triggered_button("Right", ["d"], () => this.game.changeDirection(DIRS.RIGHT));
+    this.key_triggered_button("Shoot", [" "], () => this.game.shoot());
+    this.key_triggered_button("Start", ["y"], () => {
+      this.paused = false;
+      this.begin = true;
+    });
+
+    this.key_triggered_button("View Environment", ["v"], () => (this.attached = () => this.initial_camera_location));
+    this.key_triggered_button("Switch to spaceship POV", ["g"], () => (this.attached = () => this.spaceship));
+  }
+
+  display(context, program_state) {
+    if (!context.scratchpad.controls) {
+      // Define the global camera and projection matrices, which are stored in program_state.
+      program_state.set_camera(this.initial_camera_location);
     }
 
-    draw_asteroids(context,program_state, transform) {
+    const t = program_state.animation_time / 1000,
+      dt = program_state.animation_delta_time / 1000; // Convert delta time to seconds
 
+    program_state.projection_transform = Mat4.perspective(Math.PI / 4, context.width / context.height, 1, 500);
+
+    program_state.lights = [new Light(vec4(10, 10, 10, 1), color(1, 1, 1, 1), 100000)];
+
+    let ship_transform = Mat4.identity();
+    ship_transform = ship_transform.times(Mat4.translation(0, 0, 0));
+    this.shapes.spaceship.draw(context, program_state, ship_transform, this.materials.ship_metal);
+    this.spaceship = Mat4.inverse(ship_transform.times(Mat4.translation(0, 1, 5)));
+
+    this.game.getAsteroids().forEach((asteroid) => {
+      let asteroid_transform = Mat4.identity()
+        .times(Mat4.translation(asteroid.x * 2, asteroid.y * 2, asteroid.z * 2))
+        .times(Mat4.rotation(0.625 * t, 0, 1, 1));
+      this.shapes.asteroid.draw(context, program_state, asteroid_transform, this.materials.asteroid_mat);
+    });
+
+    // render enemies
+    this.game.getEnemies().forEach((enemy, idx) => {
+      let enemy_transform = Mat4.identity().times(
+        Mat4.translation(enemy.position.x * 2, enemy.position.y * 2, enemy.position.z * 2)
+      );
+      this.shapes.alienship.draw(
+        context,
+        program_state,
+        enemy_transform,
+        this.materials.ship_metal.override({ color: hex_color("#992828") })
+      );
+    });
+    // let asteroid_transform = Mat4.identity(); // xmin: -20, xmax: 20, ymin: 0 ,ymax: 21, z = 0
+    // asteroid_transform = asteroid_transform
+    //   .times(Mat4.translation(0, 0, -19))
+    //   .times(Mat4.rotation(0.625 * t, 1, 1, 1));
+    // this.shapes.asteroid.draw(
+    //   context,
+    //   program_state,
+    //   asteroid_transform,
+    //   this.materials.asteroid_mat
+    // );
+    // this.asteroid = asteroid_transform;
+
+    // let asteroid2_transform = Mat4.identity();
+    // asteroid2_transform = asteroid2_transform
+    //   .times(Mat4.translation(7, 0, -16))
+    //   .times(Mat4.rotation(0.625 * t, 0, 1, 1));
+    // this.shapes.asteroid2.draw(
+    //   context,
+    //   program_state,
+    //   asteroid2_transform,
+    //   this.materials.asteroid_mat
+    // );
+    // this.asteroid2 = asteroid2_transform;
+
+    // let asteroid3_transform = Mat4.identity();
+    // asteroid3_transform = asteroid3_transform
+    //   .times(Mat4.translation(-10, 0, -20))
+    //   .times(Mat4.rotation(0.625 * t, 1, 1, 0));
+    // this.shapes.asteroid3.draw(
+    //   context,
+    //   program_state,
+    //   asteroid3_transform,
+    //   this.materials.asteroid_mat
+    // );
+    // this.asteroid3 = asteroid3_transform;
+
+    // let asteroid4_transform = Mat4.identity();
+    // asteroid4_transform = asteroid4_transform
+    //   .times(Mat4.translation(-13, 0, -13))
+    //   .times(Mat4.rotation(0.625 * t, 0, 1, 1));
+    // this.shapes.asteroid4.draw(
+    //   context,
+    //   program_state,
+    //   asteroid4_transform,
+    //   this.materials.asteroid_mat
+    // );
+    // this.asteroid4 = asteroid4_transform;
+
+    // let asteroid5_transform = Mat4.identity();
+    // asteroid5_transform = asteroid5_transform
+    //   .times(Mat4.translation(13, 0, -9))
+    //   .times(Mat4.rotation(0.625 * t, 0, 1, 1));
+    // this.shapes.asteroid5.draw(
+    //   context,
+    //   program_state,
+    //   asteroid5_transform,
+    //   this.materials.asteroid_mat
+    // );
+    // this.asteroid5 = asteroid5_transform;
+
+    // let asteroid6_transform = Mat4.identity();
+    // asteroid6_transform = asteroid6_transform
+    //   .times(Mat4.translation(-3, 0, -9))
+    //   .times(Mat4.rotation(0.625 * t, 0, 1, 1));
+    // this.shapes.asteroid6.draw(
+    //   context,
+    //   program_state,
+    //   asteroid6_transform,
+    //   this.materials.asteroid_mat
+    // );
+    // this.asteroid6 = asteroid6_transform;
+
+    // let asteroid7_transform = Mat4.identity();
+    // asteroid7_transform = asteroid7_transform
+    //   .times(Mat4.translation(-19, 0, -5))
+    //   .times(Mat4.rotation(0.625 * t, 0, 1, 1));
+    // this.shapes.asteroid7.draw(
+    //   context,
+    //   program_state,
+    //   asteroid7_transform,
+    //   this.materials.asteroid_mat
+    // );
+    // this.asteroid7 = asteroid7_transform;
+
+    // let asteroid8_transform = Mat4.identity();
+    // asteroid8_transform = asteroid8_transform
+    //   .times(Mat4.translation(6, 0, -5))
+    //   .times(Mat4.rotation(0.625 * t, 0, 1, 1));
+    // this.shapes.asteroid8.draw(
+    //   context,
+    //   program_state,
+    //   asteroid8_transform,
+    //   this.materials.asteroid_mat
+    // );
+    // this.asteroid8 = asteroid8_transform;
+
+    let aleinship_transform = Mat4.identity();
+    aleinship_transform = aleinship_transform.times(Mat4.translation(-2, 0, -15)).times(Mat4.rotation(60, 0, 1, 0));
+    this.shapes.alienship.draw(
+      context,
+      program_state,
+      aleinship_transform,
+      this.materials.ship_metal.override(hex_color("#992828"))
+    );
+    this.alienship = aleinship_transform;
+
+    if (this.attached != undefined) {
+      program_state.camera_inverse = this.attached().map((x, i) =>
+        Vector.from(program_state.camera_inverse[i]).mix(x, 0.1)
+      );
     }
-
-    make_control_panel() {
-        // this.key_triggered_button("Up", ["w"], () => this.control.w = true,  "#6E6460",() => this.control.w = false);
-        //
-        // this.key_triggered_button("Left", ["a"], () => this.control.a = true,  "#6E6460",() => this.control.a = false);
-        //
-        // this.key_triggered_button("Down", ["s"], () => this.control.s = true,  "#6E6460",() => this.control.s = false);
-        //
-        // this.key_triggered_button("Right", ["d"], () => this.control.d = true,  "#6E6460",() => this.control.d = false);
-
-        this.key_triggered_button("Shoot", [" "], () => {
-
-        });
-
-        this.key_triggered_button("Start", ['y'], () => {
-            this.paused = false;
-            this.begin = true;
-        });
-
-        this.key_triggered_button("View Environment", ["v"], () => (this.attached = () => this.initial_camera_location));
-
-        this.key_triggered_button("Switch to spaceship POV", ["g"], () => (this.attached = () => this.spaceship));
-
-    }
-
-    display(context, program_state) {
-
-        if (!context.scratchpad.controls) {
-            this.children.push(context.scratchpad.controls = new defs.Movement_Controls());
-            // Define the global camera and projection matrices, which are stored in program_state.
-            program_state.set_camera(this.top_camera_view);
-        }
-
-        const t = program_state.animation_time / 1000, dt = program_state.animation_delta_time / 1000;  // Convert delta time to seconds
-
-        program_state.projection_transform = Mat4.perspective(Math.PI / 4, context.width / context.height, 1, 500);
-
-        program_state.lights = [new Light(vec4(10, 10, 10, 1), color(1, 1, 1, 1), 100000)];
-
-        let ship_transform = Mat4.identity();
-        ship_transform = ship_transform.times(Mat4.translation(0, 0, 0));
-        this.shapes.spaceship.draw(context, program_state, ship_transform, this.materials.ship_metal);
-        this.spaceship = Mat4.inverse(ship_transform.times(Mat4.translation(0, 1, 5)));
-
-        let asteroid_transform = Mat4.identity(); // xmin: -20, xmax: 20, ymin: 0 ,ymax: 21, z = 0
-        asteroid_transform = asteroid_transform.times(Mat4.translation(0,0,-19))
-                                               .times(Mat4.rotation(.625 * t, 1 , 1, 1));
-        this.shapes.asteroid.draw(context, program_state, asteroid_transform, this.materials.asteroid_mat);
-        this.asteroid = asteroid_transform;
-
-        let asteroid2_transform = Mat4.identity()
-        asteroid2_transform = asteroid2_transform.times(Mat4.translation(7,  0,-16))
-                                                 .times(Mat4.rotation(.625 * t, 0, 1, 1));
-        this.shapes.asteroid2.draw(context, program_state, asteroid2_transform, this.materials.asteroid_mat);
-        this.asteroid2 = asteroid2_transform;
-
-        let asteroid3_transform = Mat4.identity()
-        asteroid3_transform = asteroid3_transform.times(Mat4.translation(-10, 0, -20))
-                                                 .times(Mat4.rotation(.625 * t, 1 , 1, 0));
-        this.shapes.asteroid3.draw(context, program_state, asteroid3_transform, this.materials.asteroid_mat);
-        this.asteroid3 = asteroid3_transform;
-
-        let asteroid4_transform = Mat4.identity()
-        asteroid4_transform = asteroid4_transform.times(Mat4.translation(-13, 0, -13))
-                                                 .times(Mat4.rotation(.625 * t, 0 , 1, 1));
-        this.shapes.asteroid4.draw(context, program_state, asteroid4_transform, this.materials.asteroid_mat);
-        this.asteroid4 = asteroid4_transform;
-
-        let asteroid5_transform = Mat4.identity()
-        asteroid5_transform = asteroid5_transform.times(Mat4.translation(13, 0, -9))
-                                                 .times(Mat4.rotation(.625 * t, 0 , 1, 1));
-        this.shapes.asteroid5.draw(context, program_state, asteroid5_transform, this.materials.asteroid_mat);
-        this.asteroid5 = asteroid5_transform;
-
-        let asteroid6_transform = Mat4.identity()
-        asteroid6_transform = asteroid6_transform.times(Mat4.translation(-3, 0, -9))
-                                                 .times(Mat4.rotation(.625 * t, 0 , 1, 1));
-        this.shapes.asteroid6.draw(context, program_state, asteroid6_transform, this.materials.asteroid_mat);
-        this.asteroid6 = asteroid6_transform;
-
-        let asteroid7_transform = Mat4.identity()
-        asteroid7_transform = asteroid7_transform.times(Mat4.translation(-19, 0, -5))
-                                                 .times(Mat4.rotation(.625 * t, 0 , 1, 1));
-        this.shapes.asteroid7.draw(context, program_state, asteroid7_transform, this.materials.asteroid_mat);
-        this.asteroid7 = asteroid7_transform;
-
-        let asteroid8_transform = Mat4.identity()
-        asteroid8_transform = asteroid8_transform.times(Mat4.translation(6, 0, -5))
-                                                 .times(Mat4.rotation(.625 * t, 0 , 1, 1));
-        this.shapes.asteroid8.draw(context, program_state, asteroid8_transform, this.materials.asteroid_mat);
-        this.asteroid8 = asteroid8_transform;
-
-        let aleinship_transform = Mat4.identity();
-        aleinship_transform = aleinship_transform.times(Mat4.translation(-2, 0, -15))
-                                                 .times(Mat4.rotation(60, 0 , 1,0 ));
-        this.shapes.alienship.draw(context, program_state, aleinship_transform, this.materials.ship_metal.override(hex_color('#992828')));
-        this.alienship = aleinship_transform;
-        
-        if (this.attached != undefined) {
-            program_state.camera_inverse = this.attached().map((x, i) =>
-                Vector.from(program_state.camera_inverse[i]).mix(x, 0.1)
-            );
-        }
-    }
-
+  }
 }
 
 class Gouraud_Shader extends Shader {
@@ -341,19 +403,9 @@ class Gouraud_Shader extends Shader {
     // cache and send those.  They will be the same throughout this draw
     // call, and thus across each instance of the vertex shader.
     // Transpose them since the GPU expects matrices as column-major arrays.
-    const PCM = gpu_state.projection_transform
-      .times(gpu_state.camera_inverse)
-      .times(model_transform);
-    gl.uniformMatrix4fv(
-      gpu.model_transform,
-      false,
-      Matrix.flatten_2D_to_1D(model_transform.transposed())
-    );
-    gl.uniformMatrix4fv(
-      gpu.projection_camera_model_transform,
-      false,
-      Matrix.flatten_2D_to_1D(PCM.transposed())
-    );
+    const PCM = gpu_state.projection_transform.times(gpu_state.camera_inverse).times(model_transform);
+    gl.uniformMatrix4fv(gpu.model_transform, false, Matrix.flatten_2D_to_1D(model_transform.transposed()));
+    gl.uniformMatrix4fv(gpu.projection_camera_model_transform, false, Matrix.flatten_2D_to_1D(PCM.transposed()));
 
     // Omitting lights will show only the material color, scaled by the ambient term:
     if (!gpu_state.lights.length) return;
@@ -361,12 +413,8 @@ class Gouraud_Shader extends Shader {
     const light_positions_flattened = [],
       light_colors_flattened = [];
     for (let i = 0; i < 4 * gpu_state.lights.length; i++) {
-      light_positions_flattened.push(
-        gpu_state.lights[Math.floor(i / 4)].position[i % 4]
-      );
-      light_colors_flattened.push(
-        gpu_state.lights[Math.floor(i / 4)].color[i % 4]
-      );
+      light_positions_flattened.push(gpu_state.lights[Math.floor(i / 4)].position[i % 4]);
+      light_colors_flattened.push(gpu_state.lights[Math.floor(i / 4)].color[i % 4]);
     }
     gl.uniform4fv(gpu.light_positions_or_vectors, light_positions_flattened);
     gl.uniform4fv(gpu.light_colors, light_colors_flattened);
