@@ -133,6 +133,8 @@ export class Asteroids3D extends Scene {
   }
   draw_spaceship(context, program_state, ship) {
     this.shapes.spaceship.draw(context, program_state, ship.transform, this.materials.ship_metal);
+    this.spaceship = Mat4.inverse(ship.transform.times(Mat4.translation(0, 1, 5)));
+
   }
   make_asteroids() {
     const min_dist = 10;  // minimum distance between asteroids
