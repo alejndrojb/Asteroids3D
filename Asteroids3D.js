@@ -27,29 +27,36 @@ const z_max = 21;
 const x_width = 72;    // width of viewport
 const z_height = 42;    // height of viewport
 class Asteroid {
-  constructor(x,y,z, side, direction) {
-    this.x = x
-    this.y = y
-    this.z = z
+  constructor(position, side, direction) {
+    this.position = position;
     this.transform = Mat4.identity();
     this.side = side;
     this.direction = direction;
-
+    this.velocity = vec3(0,0,0);
   }
 }
 class Spaceship {
-  constructor(x,y,z) {
-    this.x = x;
-    this.y = y;
-    this.z = z;
-    this.transform = Mat4.identity().times(Mat4.translation(x,y,z));
+  constructor(position) {
+    this.position = position
+    this.velocity = vec3(0,0,0);
+    this.acceleration = 0.3;
+    this.rotation_speed = Math.PI / 20;
+    this.rotate_left = false;
+    this.rotate_right = false;
+    this.forward_direction = vec3(0,0,-1);
+    this.shooting = false;
+    this.transform = Mat4.identity();
+
   }
 }
 
-function Laser(x, y, velocity) {
-  this.x = x;
-  this.y = y;
-  this.velocity = velocity;
+function Laser(position) {
+  this.position = position;
+  this.velocity = vec3(0,0,0);
+}
+
+function collides(obj1, obj2) {
+
 }
 
 export class Asteroids3D extends Scene {
@@ -102,16 +109,9 @@ export class Asteroids3D extends Scene {
     this.game = new Game();
 
     this.start_screen = true;
-    this.control = {};
-    this.start = false;
+    this.start_game = false;
     this.paused = true;
-    this.end = false;
-    this.time = 0;
-    this.control.w = false;
-    this.control.a = false;
-    this.control.s = false;
-    this.control.d = false;
-    this.control.space = false;
+    this.game_over = false;
     this.lives = 5;
     this.lasers = [];
     this.max_asteroids = 15; // set the maximum number of asteroids on screen
@@ -131,9 +131,8 @@ export class Asteroids3D extends Scene {
         vec3(0, 10, 0)      // up direction
     );
   }
-  draw_spaceship(context, program_state, t, ship) {
+  draw_spaceship(context, program_state, ship) {
     this.shapes.spaceship.draw(context, program_state, ship.transform, this.materials.ship_metal);
-    this.spaceship = Mat4.inverse(ship.transform.times(Mat4.translation(0, 1, 5)));
   }
   make_asteroids() {
     const min_dist = 10;  // minimum distance between asteroids
@@ -157,7 +156,7 @@ export class Asteroids3D extends Scene {
         // Check if asteroid is at least `min_dist` units away from other asteroids
         valid = true;
         for (let j = 0; j < this.asteroids.length; j++) {
-          const dist = Math.sqrt((this.asteroids[j].x - x) ** 2 + (this.asteroids[j].z - z) ** 2);
+          const dist = Math.sqrt((this.asteroids[j].position[0] - x) ** 2 + (this.asteroids[j].position[2] - z) ** 2);
           if (dist < min_dist) {
             valid = false;
             break;
@@ -190,7 +189,7 @@ export class Asteroids3D extends Scene {
         break;
       }
 
-      asteroid = new Asteroid(x, 0, z, side, direction);
+      asteroid = new Asteroid(vec3(x, 0, z), side, direction);
       this.asteroids.push(asteroid);
     }
   }
@@ -209,19 +208,19 @@ export class Asteroids3D extends Scene {
 
       switch (asteroids[i].direction) {
         case 'left':
-          translation = Mat4.translation(x_left , 0, asteroids[i].z);
+          translation = Mat4.translation(x_left , 0, asteroids[i].position[2]);
           rotate = Mat4.rotation(rotate_ang * t, -1 , -1, -1); // rotate right
           break;
         case 'right':
-          translation = Mat4.translation(x_right, 0, asteroids[i].z);
+          translation = Mat4.translation(x_right, 0, asteroids[i].position[2]);
           rotate = Mat4.rotation(rotate_ang * t, 1 , 1, 1);   // rotate left
           break;
         case 'up':
-          translation = Mat4.translation(asteroids[i].x, 0, z_up);
+          translation = Mat4.translation(asteroids[i].position[0], 0, z_up);
           rotate = Mat4.rotation(rotate_ang * t, -1 , 0, 0);  // rotate up
           break;
         case 'down':
-          translation = Mat4.translation(asteroids[i].x, 0, z_down);
+          translation = Mat4.translation(asteroids[i].position[0], 0, z_down);
           rotate = Mat4.rotation(rotate_ang * t, 1 , 0, 0)    // rotate down
           break;
         case 'leftup':
@@ -258,15 +257,33 @@ export class Asteroids3D extends Scene {
     // this.key_triggered_button("Down", ["s"], () => this.game.changeDirection(DIRS.DOWN));
     // this.key_triggered_button("Right", ["d"], () => this.game.changeDirection(DIRS.RIGHT));
     // this.key_triggered_button("Shoot", [" "], () => this.game.shoot());
+    this.key_triggered_button("Rotate left", ["a"], () => {
+      const rotation_matrix = Mat4.rotation(this.ship[0].rotation_speed, 0, 1, 0);
+      this.ship[0].transform = this.ship[0].transform.times(rotation_matrix);
+      this.ship[0].forward_direction = rotation_matrix.times(vec4(...this.ship[0].forward_direction, 0)).to3();
+    });
+
+    this.key_triggered_button("Rotate right", ["d"], () => {
+      const rotation_matrix = Mat4.rotation(-this.ship[0].rotation_speed, 0, 1, 0);
+      this.ship[0].transform = this.ship[0].transform.times(rotation_matrix);
+      this.ship[0].forward_direction = rotation_matrix.times(vec4(...this.ship[0].forward_direction, 0)).to3();
+    });
+
+    this.key_triggered_button("Thrust Forward", ["w"], () => {
+      const thrust_vector = this.ship[0].forward_direction.times(this.ship[0].acceleration);
+      this.ship[0].transform = this.ship[0].transform.times(Mat4.translation(...thrust_vector));
+
+    });
+
     this.key_triggered_button("Start", ["y"], () => {
       this.paused = false;
-      this.start = true;
+      this.start_game = true;
       this.start_screen = false;
       if (this.asteroids.length === 0) {
         this.make_asteroids()
       }
       if (this.ship.length === 0) {
-        this.ship.push(new Spaceship(0,0,0));
+        this.ship.push(new Spaceship(vec3(0,0,0)));
       }
 
     });
@@ -305,8 +322,8 @@ export class Asteroids3D extends Scene {
     // this.asteroid = asteroid_transform;
 
 
-    if(this.start) {
-      this.start = false;
+    if(this.start_game) {
+      this.start_game = false;
     }
 
     if (this.asteroids.length > 0 && this.asteroids.length <= this.max_asteroids) {
@@ -314,16 +331,17 @@ export class Asteroids3D extends Scene {
     }
 
     if (this.ship.length === 1) {
-      this.draw_spaceship(context, program_state, t, this.ship[0]);
+      this.draw_spaceship(context, program_state, this.ship[0]);
+
     }
+
+
 
     // if (this.paused) {
     //
     // }
     //
-    // if (this.end) {
-    //
-    // }
+
 
 
 
@@ -367,6 +385,31 @@ export class Asteroids3D extends Scene {
       );
     }
   }
+
+  // Update the spaceship's position and orientation based on user input
+  // Update the asteroids' position, orientation, and velocity
+  animate_roids(context, program_state, t, asteroids) {
+
+  }
+  animate_lasers(context, program_state, t, lasers) {
+
+  }
+
+  check_collisions(spaceship, asteroids, lasers) {
+
+  }
+
+
+
+  game_over() {
+
+  }
+
+  reset_game() {
+
+  }
+
+
 }
 
 class Gouraud_Shader extends Shader {
