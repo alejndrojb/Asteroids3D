@@ -1,6 +1,7 @@
 import { defs, tiny } from "./examples/common.js";
 import { Shape_From_File } from "./examples/obj-file-demo.js";
-import { Game, DIRS } from "./game.js";
+
+const { Cube, Textured_Phong, Square } = defs;
 
 const {
   Vector,
@@ -20,12 +21,12 @@ const {
   Scene,
 } = tiny;
 
-const x_min = -40;   // outer edges of viewport
+const x_min = -40; // outer edges of viewport
 const x_max = 40;
 const z_min = -25;
 const z_max = 25;
-const x_width = 80;    // width of viewport
-const z_height = 50;    // height of viewport
+const x_width = 80; // width of viewport
+const z_height = 50; // height of viewport
 
 function random_edge_position(min, max) {
   const edge = Math.random() > 0.5 ? min : max;
@@ -40,7 +41,7 @@ class Asteroid {
   constructor(position, velocity, rotation, size) {
     this.position = position;
     this.velocity = velocity;
-    this.rotation = rotation
+    this.rotation = rotation;
     this.size = size;
     this.rotation_speed = Math.random() * (4 - 1) + 1;
     this.transform = Mat4.identity();
@@ -48,16 +49,16 @@ class Asteroid {
 }
 class Spaceship {
   constructor(position) {
-    this.position = position
-    this.velocity = vec3(0,0,0);
+    this.position = position;
+    this.velocity = vec3(0, 0, 0);
     this.forward_direction = vec3(0, 0, -1);
     this.rotation = 0;
-    this.controls = {
+    (this.controls = {
       rotate_left: false,
       rotate_right: false,
       thrust_forward: false,
-    },
-    this.shooting = false;
+    }),
+      (this.shooting = false);
     this.transform = Mat4.identity();
   }
   // forward() {
@@ -71,19 +72,16 @@ class Spaceship {
 class Laser {
   constructor(position, velocity) {
     this.position = position;
-    this.velocity = vec3(0,0,0);
+    this.velocity = vec3(0, 0, 0);
   }
 }
 
-function collides(obj1, obj2) {
-
-}
+function collides(obj1, obj2) {}
 
 export class Asteroids3D extends Scene {
   constructor() {
     super();
     // Load the model file:
-
     this.textures = {
       metal: new Texture("assets/metal.jpg"),
       asteroid: new Texture("assets/asteroid.png"),
@@ -117,11 +115,9 @@ export class Asteroids3D extends Scene {
         color: hex_color("#808080"),
         texture: this.textures.asteroid,
       }),
-      start_screen: new Material(new Gouraud_Shader(), {
-        ambient: 0.5,
-        diffusivity: 0.5,
-        specularity: 0.5,
-        texture: this.textures.startscreen,
+      start_screen: new Material(new Textured_Phong(), {
+        ambient: 1,
+        texture: new Texture("assets/Asteroids3DStart.png"),
       }),
     };
 
@@ -140,18 +136,29 @@ export class Asteroids3D extends Scene {
     this.enemies = [];
     this.ship = [];
 
+    this.initial_camera_location = Mat4.look_at(vec3(0, 10, 20), vec3(0, 0, 0), vec3(0, 1, 0));
 
-    this.initial_camera_location = Mat4.look_at(
-        vec3(0, 10, 20),
-        vec3(0, 0, 0),
-        vec3(0, 1, 0)
-    );
-
+    // this.start_screen_camera_view = Mat4.look_at(
+    //   vec3(100, 45, 100),
+    //   vec3(0, 0, 0),
+    //   vec3(0, 1, 0)
+    // )
     this.top_camera_view = Mat4.look_at(
-        vec3(0, 45, 5),  // eye position (above view)
-        vec3(0, 0, 0),     // look at the origin (viewport)
-        vec3(0, 10, 0)      // up direction
+      vec3(0, 45, 5), // eye position (above view)
+      vec3(0, 0, 0), // look at the origin (viewport)
+      vec3(0, 10, 0) // up direction
     );
+
+    this.start_camera_view = Mat4.look_at(
+      vec3(10000, 30, 80),
+      vec3(80, 30, 80),
+      vec3(0, 1, 0)
+    );
+
+    this.start_screen_transform = Mat4.identity()
+      .times(Mat4.translation(9980, 30, 80, 0))
+      .times(Mat4.rotation(Math.PI / 2, 0, 1, 0))
+      .times(Mat4.scale(10, 10, 10));
   }
   draw_spaceship(context, program_state, ship) {
     this.shapes.spaceship.draw(context, program_state, ship.transform, this.materials.ship_metal);
@@ -206,6 +213,7 @@ export class Asteroids3D extends Scene {
     }
     return asteroids;
   }
+
   // Update the asteroids' position, orientation, and velocity
   animate_asteroids(context, program_state, dt, asteroids) {
     asteroids.forEach((asteroid) => {
@@ -224,26 +232,14 @@ export class Asteroids3D extends Scene {
     });
   }
 
-  animate_enemies(context, program_state, dt, enemies) {
+  animate_enemies(context, program_state, dt, enemies) {}
+  animate_lasers(context, program_state, t, lasers) {}
 
-  }
-  animate_lasers(context, program_state, t, lasers) {
+  check_collisions(spaceship, asteroids, lasers) {}
 
-  }
+  game_over() {}
 
-  check_collisions(spaceship, asteroids, lasers) {
-
-  }
-
-
-
-  game_over() {
-
-  }
-
-  reset_game() {
-
-  }
+  reset_game() {}
 
   make_control_panel() {
     // this.key_triggered_button("Up", ["w"], () => this.game.changeDirection(DIRS.UP));
@@ -251,43 +247,61 @@ export class Asteroids3D extends Scene {
     // this.key_triggered_button("Down", ["s"], () => this.game.changeDirection(DIRS.DOWN));
     // this.key_triggered_button("Right", ["d"], () => this.game.changeDirection(DIRS.RIGHT));
     // this.key_triggered_button("Shoot", [" "], () => this.game.shoot());
-    this.key_triggered_button("Rotate left", ["a"], () => {
-      // const rotation_matrix = Mat4.rotation(this.ship[0].rotation_speed, 0, 1, 0);
-      // this.ship[0].transform = this.ship[0].transform.times(rotation_matrix);
-      // this.ship[0].forward_direction = rotation_matrix.times(vec4(...this.ship[0].forward_direction, 0)).to3();
-      this.ship[0].controls.rotate_left = true;
-    }, undefined, () => {
-      this.ship[0].controls.rotate_left = false;
-    });
+    this.key_triggered_button(
+      "Rotate left",
+      ["a"],
+      () => {
+        // const rotation_matrix = Mat4.rotation(this.ship[0].rotation_speed, 0, 1, 0);
+        // this.ship[0].transform = this.ship[0].transform.times(rotation_matrix);
+        // this.ship[0].forward_direction = rotation_matrix.times(vec4(...this.ship[0].forward_direction, 0)).to3();
+        this.ship[0].controls.rotate_left = true;
+      },
+      undefined,
+      () => {
+        this.ship[0].controls.rotate_left = false;
+      }
+    );
 
-    this.key_triggered_button("Rotate right", ["d"], () => {
-      // const rotation_matrix = Mat4.rotation(-this.ship[0].rotation_speed, 0, 1, 0);
-      // this.ship[0].transform = this.ship[0].transform.times(rotation_matrix);
-      // this.ship[0].forward_direction = rotation_matrix.times(vec4(...this.ship[0].forward_direction, 0)).to3();
-      this.ship[0].controls.rotate_right = true;
-    }, undefined, () => {
-      this.ship[0].controls.rotate_right = false;
-    });
+    this.key_triggered_button(
+      "Rotate right",
+      ["d"],
+      () => {
+        // const rotation_matrix = Mat4.rotation(-this.ship[0].rotation_speed, 0, 1, 0);
+        // this.ship[0].transform = this.ship[0].transform.times(rotation_matrix);
+        // this.ship[0].forward_direction = rotation_matrix.times(vec4(...this.ship[0].forward_direction, 0)).to3();
+        this.ship[0].controls.rotate_right = true;
+      },
+      undefined,
+      () => {
+        this.ship[0].controls.rotate_right = false;
+      }
+    );
 
-    this.key_triggered_button("Thrust Forward", ["w"], () => {
-      this.ship[0].controls.thrust_forward = true;
-    }, undefined, () => {
-      this.ship[0].controls.thrust_forward = false;
-    });
+    this.key_triggered_button(
+      "Thrust Forward",
+      ["w"],
+      () => {
+        this.ship[0].controls.thrust_forward = true;
+      },
+      undefined,
+      () => {
+        this.ship[0].controls.thrust_forward = false;
+      }
+    );
 
     this.key_triggered_button("Start", ["y"], () => {
+      this.attached = () => this.top_camera_view;
       this.paused = false;
       this.start_game = true;
       this.start_screen = false;
-      console.log(this.asteroids)
+      console.log(this.asteroids);
       if (this.asteroids.length === 0) {
         this.asteroids = this.generate_asteroids();
-        console.log(this.asteroids)
+        console.log(this.asteroids);
       }
       if (this.ship.length === 0) {
-        this.ship.push(new Spaceship(vec3(0,0,0)));
+        this.ship.push(new Spaceship(vec3(0, 0, 0)));
       }
-
     });
 
     this.key_triggered_button("View Environment", ["v"], () => (this.attached = () => this.initial_camera_location));
@@ -299,19 +313,19 @@ export class Asteroids3D extends Scene {
 
   display(context, program_state) {
     if (!context.scratchpad.controls) {
-      this.children.push(context.scratchpad.controls = new defs.Movement_Controls());
+      this.children.push((context.scratchpad.controls = new defs.Movement_Controls()));
       // Define the global camera and projection matrices, which are stored in program_state.
-      program_state.set_camera(this.top_camera_view);
+      program_state.set_camera(this.start_camera_view);
     }
 
-    const t = program_state.animation_time / 1000, dt = program_state.animation_delta_time / 1000; // Convert delta time to seconds
+    const t = program_state.animation_time / 1000,
+      dt = program_state.animation_delta_time / 1000; // Convert delta time to seconds
 
     program_state.projection_transform = Mat4.perspective(Math.PI / 4, context.width / context.height, 1, 500);
 
-
-
     program_state.lights = [new Light(vec4(10, 10, 10, 1), color(1, 1, 1, 1), 100000)];
 
+    this.shapes.square.draw(context, program_state, this.start_screen_transform, this.materials.start_screen);
     // const ship = new Spaceship(0,0,0);
     // this.shapes.spaceship.draw(context, program_state, ship.transform, this.materials.ship_metal);
     // this.spaceship = Mat4.inverse(ship.transform.times(Mat4.translation(0, 1, 5)));
@@ -323,8 +337,7 @@ export class Asteroids3D extends Scene {
     // this.shapes.asteroid.draw(context, program_state, asteroid_transform, this.materials.asteroid_mat);
     // this.asteroid = asteroid_transform;
 
-
-    if(this.start_game) {
+    if (this.start_game) {
       this.start_game = false;
     }
 
@@ -338,15 +351,10 @@ export class Asteroids3D extends Scene {
       this.draw_spaceship(context, program_state, this.ship[0]);
     }
 
-
-
     // if (this.paused) {
     //
     // }
     //
-
-
-
 
     // this.game.getAsteroids().forEach((asteroid) => {
     //   let asteroid_transform = Mat4.identity()
@@ -355,8 +363,6 @@ export class Asteroids3D extends Scene {
     //   this.shapes.asteroid.draw(context, program_state, asteroid_transform, this.materials.asteroid_mat);
     //   this.asteroids.push(asteroid);
     // });
-
-
 
     // render enemies
     // this.game.getEnemies().forEach((enemy, idx) => {
@@ -371,7 +377,6 @@ export class Asteroids3D extends Scene {
     //   );
     // });
 
-
     // let alienship_transform = Mat4.identity();
     // alienship_transform = alienship_transform.times(Mat4.translation(-2, 0, -15)).times(Mat4.rotation(60, 0, 1, 0));
     // this.shapes.alienship.draw(
@@ -384,11 +389,10 @@ export class Asteroids3D extends Scene {
 
     if (this.attached != undefined) {
       program_state.camera_inverse = this.attached().map((x, i) =>
-          Vector.from(program_state.camera_inverse[i]).mix(x, 0.1)
+        Vector.from(program_state.camera_inverse[i]).mix(x, 0.1)
       );
     }
   }
-
 
   // make_asteroids() {
   //   const min_dist = 10;  // minimum distance between asteroids
@@ -505,8 +509,6 @@ export class Asteroids3D extends Scene {
   //   }
   //
   // }
-
-
 }
 
 class Gouraud_Shader extends Shader {
@@ -521,11 +523,11 @@ class Gouraud_Shader extends Shader {
   shared_glsl_code() {
     // ********* SHARED CODE, INCLUDED IN BOTH SHADERS *********
     return (
-        ` 
+      ` 
         precision mediump float;
         const int N_LIGHTS = ` +
-        this.num_lights +
-        `;
+      this.num_lights +
+      `;
         uniform float ambient, diffusivity, specularity, smoothness;
         uniform vec4 light_positions_or_vectors[N_LIGHTS], light_colors[N_LIGHTS];
         uniform float light_attenuation_factors[N_LIGHTS];
@@ -573,8 +575,8 @@ class Gouraud_Shader extends Shader {
   vertex_glsl_code() {
     // ********* VERTEX SHADER *********
     return (
-        this.shared_glsl_code() +
-        `
+      this.shared_glsl_code() +
+      `
             attribute vec3 position, normal;                          
             // Position is expressed in object coordinates.
             
@@ -599,8 +601,8 @@ class Gouraud_Shader extends Shader {
     // A fragment is a pixel that's overlapped by the current triangle.
     // Fragments affect the final image or get discarded due to depth.
     return (
-        this.shared_glsl_code() +
-        `
+      this.shared_glsl_code() +
+      `
             void main(){                                                           
                 // Compute fragment color
                 gl_FragColor = vertex_color; 
@@ -621,14 +623,14 @@ class Gouraud_Shader extends Shader {
   send_gpu_state(gl, gpu, gpu_state, model_transform) {
     // send_gpu_state():  Send the state of our whole drawing context to the GPU.
     const O = vec4(0, 0, 0, 1),
-        camera_center = gpu_state.camera_transform.times(O).to3();
+      camera_center = gpu_state.camera_transform.times(O).to3();
     gl.uniform3fv(gpu.camera_center, camera_center);
     // Use the squared scale trick from "Eric's blog" instead of inverse transpose matrix:
     const squared_scale = model_transform
-        .reduce((acc, r) => {
-          return acc.plus(vec4(...r).times_pairwise(r));
-        }, vec4(0, 0, 0, 0))
-        .to3();
+      .reduce((acc, r) => {
+        return acc.plus(vec4(...r).times_pairwise(r));
+      }, vec4(0, 0, 0, 0))
+      .to3();
     gl.uniform3fv(gpu.squared_scale, squared_scale);
     // Send the current matrices to the shader.  Go ahead and pre-compute
     // the products we'll need of the of the three special matrices and just
@@ -643,7 +645,7 @@ class Gouraud_Shader extends Shader {
     if (!gpu_state.lights.length) return;
 
     const light_positions_flattened = [],
-        light_colors_flattened = [];
+      light_colors_flattened = [];
     for (let i = 0; i < 4 * gpu_state.lights.length; i++) {
       light_positions_flattened.push(gpu_state.lights[Math.floor(i / 4)].position[i % 4]);
       light_colors_flattened.push(gpu_state.lights[Math.floor(i / 4)].color[i % 4]);
@@ -651,8 +653,8 @@ class Gouraud_Shader extends Shader {
     gl.uniform4fv(gpu.light_positions_or_vectors, light_positions_flattened);
     gl.uniform4fv(gpu.light_colors, light_colors_flattened);
     gl.uniform1fv(
-        gpu.light_attenuation_factors,
-        gpu_state.lights.map((l) => l.attenuation)
+      gpu.light_attenuation_factors,
+      gpu_state.lights.map((l) => l.attenuation)
     );
   }
 
