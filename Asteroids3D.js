@@ -1,5 +1,6 @@
 import { defs, tiny } from "./examples/common.js";
 import { Shape_From_File } from "./examples/obj-file-demo.js";
+import { Game, DIRS } from "./game.js";
 
 const { Cube, Textured_Phong, Square } = defs;
 
