@@ -87,7 +87,7 @@ export class Asteroids3D extends Scene {
       metal: new Texture("assets/metal.jpg"),
       asteroid: new Texture("assets/asteroid.png"),
       background: new Texture("assets/background.png"),
-      startscreen: new Texture("assets/Asteroids3DStart.png"),
+      startscreen: new Texture("assets/game_over.jpg"),
     };
 
     this.shapes = {
@@ -101,24 +101,26 @@ export class Asteroids3D extends Scene {
     const shader = new defs.Fake_Bump_Map(1);
 
     this.materials = {
-      ship_metal: new Material(new Gouraud_Shader(), {
-        ambient: 0.4,
-        diffusivity: 0.3,
-        specularity: 0.7,
-        color: hex_color("#ffffff"),
-        texture: this.textures.metal,
+      ship_metal: new Material(new Textured_Phong(), {
+        ambient: 1,
+        texture: new Texture("assets/rgb.jpg"),
       }),
 
-      asteroid_mat: new Material(new Gouraud_Shader(), {
-        ambient: 0.4,
+      asteroid_mat: new Material(new Textured_Phong(), {
+        ambient: 1,
         diffusivity: 0.5,
         specularity: 0.2,
-        color: hex_color("#808080"),
         texture: this.textures.asteroid,
       }),
+
       start_screen: new Material(new Textured_Phong(), {
         ambient: 1,
         texture: new Texture("assets/Asteroids3DStart.png"),
+      }),
+
+      end_screen: new Material(new Textured_Phong(), {
+        ambient: 1,
+        texture: new Texture("assets/game_over.jpg"),
       }),
     };
 
@@ -150,14 +152,17 @@ export class Asteroids3D extends Scene {
       vec3(0, 10, 0) // up direction
     );
 
-    this.start_camera_view = Mat4.look_at(
-      vec3(10000, 30, 80),
-      vec3(80, 30, 80),
-      vec3(0, 1, 0)
-    );
+    this.start_camera_view = Mat4.look_at(vec3(10000, 30, 80), vec3(80, 30, 80), vec3(0, 1, 0));
+
+    this.end_camera_view = Mat4.look_at(vec3(5000, 30, 80), vec3(80, 30, 80), vec3(0, 1, 0));
 
     this.start_screen_transform = Mat4.identity()
       .times(Mat4.translation(9980, 30, 80, 0))
+      .times(Mat4.rotation(Math.PI / 2, 0, 1, 0))
+      .times(Mat4.scale(10, 10, 10));
+
+    this.end_screen_transform = Mat4.identity()
+      .times(Mat4.translation(4980, 30, 80, 0))
       .times(Mat4.rotation(Math.PI / 2, 0, 1, 0))
       .times(Mat4.scale(10, 10, 10));
   }
@@ -326,7 +331,10 @@ export class Asteroids3D extends Scene {
 
     program_state.lights = [new Light(vec4(10, 10, 10, 1), color(1, 1, 1, 1), 100000)];
 
+    // draw start and end screen
     this.shapes.square.draw(context, program_state, this.start_screen_transform, this.materials.start_screen);
+    this.shapes.square.draw(context, program_state, this.end_screen_transform, this.materials.end_screen);
+
     // const ship = new Spaceship(0,0,0);
     // this.shapes.spaceship.draw(context, program_state, ship.transform, this.materials.ship_metal);
     // this.spaceship = Mat4.inverse(ship.transform.times(Mat4.translation(0, 1, 5)));
