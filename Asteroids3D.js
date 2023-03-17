@@ -159,7 +159,7 @@ export class Asteroids3D extends Scene {
 
     this.materials = {
       ship_metal: new Material(new Textured_Phong(), {
-        ambient: 0.2,
+        ambient: 0.6,
         specularity: 0.2,
         color: hex_color("#003876"),
       }),
