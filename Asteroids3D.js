@@ -1,6 +1,7 @@
 import { defs, tiny } from "./examples/common.js";
 import { Shape_From_File } from "./examples/obj-file-demo.js";
 import { Game, DIRS } from "./game.js";
+import {Text_Line} from "./examples/text-demo.js";
 
 const {
   Vector,
@@ -20,22 +21,44 @@ const {
   Scene,
 } = tiny;
 
-const x_min = -40;   // outer edges of viewport
-const x_max = 40;
-const z_min = -25;
-const z_max = 25;
-const x_width = 80;    // width of viewport
-const z_height = 50;    // height of viewport
+const x_min = -36;   // outer edges of viewport
+const x_max = 36;
+const z_min = -22;
+const z_max = 22;
+const min_spawn_interval = 6; // Minimum time between enemy ship spawns, in seconds
+const max_spawn_interval = 12; // Maximum time between enemy ship spawns, in seconds
+
+function is_within_bounds(position, x_min, x_max, z_min, z_max) {
+  return position[0] >= x_min && position[0] <= x_max && position[2] >= z_min && position[2] <= z_max;
+}
+function is_out_of_bounds(position, x_min, x_max, z_min, z_max) {
+  return position[0] < x_min || position[0] > x_max || position[2] < z_min || position[2] > z_max;
+}
 
 function random_edge_position(min, max) {
   const edge = Math.random() > 0.5 ? min : max;
-  return Math.random() * (max - min) + edge;
+  return edge;
 }
+
 function wrap_position(position, min, max) {
   if (position < min) return max;
   if (position > max) return min;
   return position;
 }
+
+function check_collisions(a, b) {
+  const distance_vector = a.position.minus(b.position);
+  const distance_squared = distance_vector.dot(distance_vector);
+  const sum = a.size + b.size;
+  return distance_squared <= sum * sum;
+}
+function random_velocity(speed, angle_offset = 0) {
+  const angle = Math.random() * 2 * Math.PI + angle_offset;
+  const x = speed * Math.cos(angle);
+  const z = speed * Math.sin(angle);
+  return vec3(x, 0, z);
+}
+
 class Asteroid {
   constructor(position, velocity, rotation, size) {
     this.position = position;
@@ -56,29 +79,36 @@ class Spaceship {
       rotate_left: false,
       rotate_right: false,
       thrust_forward: false,
-    },
-    this.shooting = false;
+    };
     this.transform = Mat4.identity();
+    this.size = 1.2;
+    this.invincible = false;
+    this.invincibility_timer = 0;
+    this.blink_timer = 0;
   }
-  // forward() {
-  //   const forwardVector = vec3(0, 0, 0,  -1)
-  //   const rotationMatrix = Mat4.rotation(this.rotation, 0, 1, 0);
-  //   const rotatedForwardVector = rotationMatrix.times(forwardVector);
-  //   return vec3(rotatedForwardVector[0], rotatedForwardVector[1], rotatedForwardVector[2]);
-  // }
 }
-
-class Laser {
+class Projectile {
   constructor(position, velocity) {
     this.position = position;
-    this.velocity = vec3(0,0,0);
+    this.velocity = velocity;
+    this.lifetime = 1.5;       // in seconds
+    this.transform = Mat4.identity();
+    this.size = 0.15;
   }
 }
 
-function collides(obj1, obj2) {
-
+class Enemy {
+  constructor(position, direction) {
+    this.position = position;
+    this.velocity = vec3(0, 0, 0);
+    this.rotation = 0;
+    this.forward_direction = vec3(0, 0, -1);
+    this.direction = direction;
+    this.lifetime = 10;
+    this.size = 1.2;
+    this.transform = Mat4.identity();
+  }
 }
-
 export class Asteroids3D extends Scene {
   constructor() {
     super();
@@ -93,10 +123,12 @@ export class Asteroids3D extends Scene {
 
     this.shapes = {
       spaceship: new Shape_From_File("assets/spaceship.obj"),
-      alienship: new Shape_From_File("assets/alienship.obj"),
+      enemyship: new Shape_From_File("assets/alienship.obj"),
       asteroid: new Shape_From_File("assets/asteroid.obj"),
+      projectile: new defs.Subdivision_Sphere(2),
       // asteroid: new defs.Subdivision_Sphere(2),
       square: new defs.Square(),
+      text: new Text_Line()
     };
 
     const shader = new defs.Fake_Bump_Map(1);
@@ -109,7 +141,13 @@ export class Asteroids3D extends Scene {
         color: hex_color("#ffffff"),
         texture: this.textures.metal,
       }),
-
+      enemy_metal: new Material(new Gouraud_Shader(), {
+        ambient: 0.4,
+        diffusivity: 0.3,
+        specularity: 0.7,
+        color: hex_color("#FF5733"),
+        texture: this.textures.metal,
+      }),
       asteroid_mat: new Material(new Gouraud_Shader(), {
         ambient: 0.4,
         diffusivity: 0.5,
@@ -123,23 +161,31 @@ export class Asteroids3D extends Scene {
         specularity: 0.5,
         texture: this.textures.startscreen,
       }),
+      proj_mat: new Material(new Gouraud_Shader(), {
+        ambient: 0.2,
+        diffusivity: 0.3,
+        specularity: 0.4,
+        color: hex_color("#FF5733"),
+      }),
     };
 
-    // initialize game logic
-    this.game = new Game();
 
     this.start_screen = true;
     this.start_game = false;
     this.paused = true;
-    this.game_over = false;
+    this.end_game = false;
     this.lives = 5;
-    this.max_asteroids = 8; // set the maximum number of asteroids on screen
+    this.score = 0;
+    this.spawn_timer = 0;
+    this.spawn_interval = Math.random() * (max_spawn_interval - min_spawn_interval) + min_spawn_interval;
+    this.max_asteroids = 6; // set the maximum number of asteroids on screen
     this.max_enemies = 2;
-    this.lasers = [];
+    this.projectiles = [];
+    this.enemy_projectiles = [];
     this.asteroids = [];
+    this.fragments = [];
     this.enemies = [];
     this.ship = [];
-
 
     this.initial_camera_location = Mat4.look_at(
         vec3(0, 10, 20),
@@ -153,10 +199,90 @@ export class Asteroids3D extends Scene {
         vec3(0, 10, 0)      // up direction
     );
   }
-  draw_spaceship(context, program_state, ship) {
-    this.shapes.spaceship.draw(context, program_state, ship.transform, this.materials.ship_metal);
-    this.spaceship = Mat4.inverse(ship.transform.times(Mat4.translation(0, 1, 5)));
+  draw_spaceship(context, program_state, spaceship, dt) {
+    // Update invincibility
+    if (spaceship.invincible) {
+      spaceship.invincibility_timer += dt; // Increment timer
+      spaceship.blink_timer += dt;
+
+      if (spaceship.invincibility_timer >= 1.5) {
+        spaceship.invincible = false; // End invincibility
+        spaceship.invincibility_timer = 0;
+      }
+    }
+    // Draw the spaceship (with blinking effect)
+    if (!spaceship.invincible || (spaceship.invincible && Math.floor(spaceship.blink_timer * 10) % 2 === 0)) {
+      this.shapes.spaceship.draw(context, program_state, spaceship.transform, this.materials.ship_metal);
+      this.spaceship = Mat4.inverse(spaceship.transform.times(Mat4.translation(0, 1, 5)));
+    }
+    this.spaceship = Mat4.inverse(spaceship.transform.times(Mat4.translation(0, 1, 5)));
   }
+
+  spawn_asteroid() {
+    const min_speed = 3; // adjust these values to your desired speed range
+    const max_speed = 5;
+
+    const speed = Math.random() * (max_speed - min_speed) + min_speed;
+    const angle = Math.random() * Math.PI * 2;
+    const velocity = vec3(Math.sin(angle) * speed, 0, Math.cos(angle) * speed);
+    const position = vec3(random_edge_position(x_min, x_max), 0, random_edge_position(z_min, z_max));
+    const rotation = Math.random() * 2 * Math.PI;
+    const size = Math.random() * 1.7 + 1.2;
+
+    const asteroid = new Asteroid(position, velocity, rotation, size);
+
+    return asteroid;
+  }
+  spawn_enemy() {
+    const edge = Math.floor(Math.random() * 4);
+    let random_position;
+
+    switch (edge) {
+      case 0: // left edge
+        random_position = vec3(x_min, 0, Math.random() * (z_max - z_min) + z_min);
+        break;
+      case 1: // right edge
+        random_position = vec3(x_max, 0, Math.random() * (z_max - z_min) + z_min);
+        break;
+      case 2: // bottom edge
+        random_position = vec3(Math.random() * (x_max - x_min) + x_min, 0, z_min);
+        break;
+      case 3: // top edge
+        random_position = vec3(Math.random() * (x_max - x_min) + x_min, 0, z_max);
+        break;
+    }
+    const enemy = new Enemy(random_position, edge);
+    return enemy;
+  }
+  gen_enemy_projectile(enemy, spaceship, speed) {
+    const position = enemy.position;
+    const velocity = spaceship.position.minus(enemy.position).normalized().times(speed);
+    return new Projectile(position, velocity);
+  }
+  generate_projectiles(spaceship) {
+    // Define the relative position of the guns on the spaceship
+    const left_gun_offset = vec3(-0.85, 0, 0);
+    const right_gun_offset = vec3(0.85, 0, 0);
+
+    const rotation_matrix = Mat4.rotation(spaceship.rotation, 0, 1, 0);
+    const rotated_left_gun_offset = rotation_matrix.times(vec4(...left_gun_offset, 0)).to3();
+    const rotated_right_gun_offset = rotation_matrix.times(vec4(...right_gun_offset, 0)).to3();
+
+    const left_gun_position = spaceship.position.plus(rotated_left_gun_offset);
+    const right_gun_position = spaceship.position.plus(rotated_right_gun_offset)
+    ;
+    const projectile_speed = 30;
+
+    const projectile_velocity = spaceship.forward_direction.times(projectile_speed);
+
+    const left_projectile = new Projectile(left_gun_position, projectile_velocity);
+    const right_projectile = new Projectile(right_gun_position, projectile_velocity);
+
+
+    this.projectiles.push(left_projectile);
+    this.projectiles.push(right_projectile);
+  }
+
   // Update the spaceship's position and orientation based on user input
   animate_spaceship(spaceship, dt) {
     if (!spaceship) return;
@@ -171,7 +297,6 @@ export class Asteroids3D extends Scene {
     if (spaceship.controls.rotate_right) {
       spaceship.rotation -= rotation_speed * dt;
     }
-
     // Update forward direction based on rotation
     spaceship.forward_direction = vec3(-Math.sin(spaceship.rotation), 0, -Math.cos(spaceship.rotation));
 
@@ -179,6 +304,9 @@ export class Asteroids3D extends Scene {
     if (spaceship.controls.thrust_forward) {
       const thrust = spaceship.forward_direction.times(thrust_speed * dt);
       spaceship.position = spaceship.position.plus(thrust);
+      spaceship.velocity = spaceship.forward_direction.times(thrust_speed);
+    } else {
+      spaceship.velocity = vec3(0, 0, 0);
     }
 
     // Wrap spaceship's position when reaching the screen bounds
@@ -189,26 +317,10 @@ export class Asteroids3D extends Scene {
     spaceship.transform = Mat4.translation(...spaceship.position).times(Mat4.rotation(spaceship.rotation, 0, 1, 0));
   }
 
-  generate_asteroids() {
-    const asteroids = [];
-    const min_speed = 5; // adjust these values to your desired speed range
-    const max_speed = 10;
-
-    for (let i = 0; i < this.max_asteroids; i++) {
-      const speed = Math.random() * (max_speed - min_speed) + min_speed;
-      const angle = Math.random() * Math.PI * 2;
-      const velocity = vec3(Math.sin(angle) * speed, 0, Math.cos(angle) * speed);
-      const position = vec3(random_edge_position(x_min, x_max), 0, random_edge_position(z_min, z_max));
-      const rotation = Math.random() * 2 * Math.PI;
-      const size = Math.random() * 1.7 + 1.2;
-      const asteroid = new Asteroid(position, velocity, rotation, size);
-      asteroids.push(asteroid);
-    }
-    return asteroids;
-  }
   // Update the asteroids' position, orientation, and velocity
-  animate_asteroids(context, program_state, dt, asteroids) {
-    asteroids.forEach((asteroid) => {
+  animate_asteroids(context, program_state, dt, asteroids, spaceship) {
+    for (let i = 0; i < asteroids.length; i++) {
+      const asteroid = asteroids[i];
       asteroid.position = asteroid.position.plus(asteroid.velocity.times(dt));
       asteroid.rotation += asteroid.rotation_speed * dt;
 
@@ -220,50 +332,367 @@ export class Asteroids3D extends Scene {
       const scale = Mat4.scale(asteroid.size, asteroid.size, asteroid.size);
       asteroid.transform = translation.times(rotation).times(scale);
 
+      // Check for collision with the spaceship
+      if (!spaceship.invincible && check_collisions(spaceship, asteroid)) {
+        // Remove the asteroid from the array and decrement the index
+        asteroids.splice(i, 1);
+        i--;
+        spaceship.invincible = true;
+        this.lives--;
+        this.update_score_lives();
+        console.log('Asteroid collided with spaceship, Lives: ', this.lives);
+        if (this.lives <= 0) {
+          this.game_over();
+        }
+        continue;
+      }
+      // Check for collision with other asteroids
+      for (let j = i + 1; j < asteroids.length; j++) {
+        const other_asteroid = asteroids[j];
+        if (check_collisions(asteroid, other_asteroid)) {
+          // Swap velocities
+          const temp_velocity = asteroid.velocity;
+          asteroid.velocity = other_asteroid.velocity;
+          other_asteroid.velocity = temp_velocity;
+
+          // Swap rotation speeds
+          const temp_rotation_speed = asteroid.rotation_speed;
+          asteroid.rotation_speed = other_asteroid.rotation_speed;
+          other_asteroid.rotation_speed = temp_rotation_speed;
+
+          // Move the asteroids slightly apart to prevent them from getting stuck
+          asteroid.position = asteroid.position.plus(asteroid.velocity.times(dt));
+          other_asteroid.position = other_asteroid.position.plus(other_asteroid.velocity.times(dt));
+        }
+      }
+
+
       this.shapes.asteroid.draw(context, program_state, asteroid.transform, this.materials.asteroid_mat);
-    });
+    }
+    // Check if there are less than 4 asteroids and generate new ones
+    while (asteroids.length < this.max_asteroids) {
+      asteroids.push(this.spawn_asteroid());
+    }
   }
 
-  animate_enemies(context, program_state, dt, enemies) {
+  animate_enemies(context, program_state, dt, enemies, spaceship, enemy_projectiles) {
+    //Increment spawn timer
+    this.spawn_timer += dt;
+
+    // Check if it's time to spawn a new enemy ship
+    if (this.spawn_timer >= this.spawn_interval) {
+      if (enemies.length < this.max_enemies) {
+        enemies.push(this.spawn_enemy());
+        this.spawn_timer = 0;
+        this.spawn_interval = Math.random() * (max_spawn_interval - min_spawn_interval) + min_spawn_interval;
+        console.log("Enemies: ", enemies);
+      }
+    }
+
+    if (enemies) {
+      const enemy_speed = 8;
+      for (let i = 0; i < enemies.length; i++) {
+        const enemy = enemies[i];
+
+        // Calculate the direction to the spaceship
+        const direction_to_spaceship = spaceship.position.minus(enemy.position).normalized();
+
+        // Update enemy ship's rotation to face the opposite side of the spaceship
+        const opposite_direction = direction_to_spaceship.times(-1);
+        const angle_to_spaceship = Math.atan2(opposite_direction[0], opposite_direction[2]);
+        enemy.rotation = angle_to_spaceship;
+
+        // Define the enemy ship's movement direction
+        // Define the enemy ship's movement direction
+        const movement_directions = [
+          vec3(1, 0, 0),
+          vec3(-1, 0, 0),
+          vec3(0, 0, 1),
+          vec3(0, 0, -1)
+        ];
+        const movement_direction = movement_directions[enemy.direction];        // Update enemy ship's position
+        const displacement = movement_direction.times(enemy_speed * dt);
+        enemy.position = enemy.position.plus(displacement);
+
+        // Update enemy ship's transform and draw it
+        enemy.transform = Mat4.translation(...enemy.position).times(Mat4.rotation(enemy.rotation, 0, 1, 0));
+        this.shapes.enemyship.draw(context, program_state, enemy.transform, this.materials.enemy_metal);
+
+        // check enemy lifetime
+        enemy.lifetime -= dt;
+        if (enemy.lifetime <= 0 && is_out_of_bounds(enemy.position, x_min, x_max, z_min, z_max)) {
+          enemies.splice(i, 1);
+          i--;
+        }
+
+        // Enemy shooting logic
+        if (is_within_bounds(enemy.position, x_min, x_max, z_min, z_max)) {
+          if (Math.random() < 0.008) { // 0.5% chance of shooting per frame
+            const projectile_speed = 20;
+            const projectile = this.gen_enemy_projectile(enemy, spaceship, projectile_speed);
+            enemy_projectiles.push(projectile);
+          }
+        }
+
+        // Check for collision between enemy ship and spaceship
+        if (!spaceship.invincible && check_collisions(enemy, spaceship)) {
+          console.log("Spaceship collided with an enemy ship!");
+          enemies.splice(i, 1);
+
+          // decrease spaceship lives or end the game
+          spaceship.invincible = true;
+          this.lives--;
+          this.update_score_lives();
+          console.log('Enemy ship collided with spaceship, Lives: ', this.lives);
+          if (this.lives <= 0) {
+            this.game_over();
+          }
+        }
+      }
+
+      // Update and draw enemy projectiles
+      for (let i = 0; i < enemy_projectiles.length; i++) {
+        const projectile = enemy_projectiles[i];
+        const displacement = projectile.velocity.times(dt);
+        projectile.position = projectile.position.plus(displacement);
+        projectile.lifetime -= dt;
+
+        // Check for collision between the projectile and the spaceship
+        if (!spaceship.invincible && check_collisions(projectile, spaceship)) {
+          console.log("Spaceship hit by enemy projectile!");
+
+          // Remove the projectile from the array
+          enemy_projectiles.splice(i, 1);
+          spaceship.invincible = true;
+          this.lives--;
+          this.update_score_lives();
+
+          console.log('Enemy hit spaceship, Lives: ', this.lives);
+          if (this.lives <= 0) {
+            this.game_over();
+          }
+          i--;
+        } else if (projectile.lifetime <= 0) {
+          enemy_projectiles.splice(i, 1);
+          i--;
+        } else {
+          const scale = Mat4.scale(projectile.size, projectile.size, projectile.size);
+          projectile.transform = Mat4.translation(...projectile.position).times(scale);
+          this.shapes.projectile.draw(context, program_state, projectile.transform, this.materials.proj_mat);
+        }
+      }
+    }
+  }
+
+  animate_projectiles(context, program_state, dt, projectiles, asteroids, enemies, fragments) {
+    const min_asteroid_size = 1.5;
+
+    for (let i = projectiles.length - 1; i >= 0; i--) {
+      const projectile = projectiles[i];
+      // Update the lifetime of the projectile
+      projectile.lifetime -= dt;
+      // If the projectile's lifetime is up, remove it from the array
+      if (projectile.lifetime <= 0) {
+        projectiles.splice(i, 1);
+        continue;
+      }
+      const displacement = projectile.velocity.times(dt);
+      projectile.position = projectile.position.plus(displacement);
+
+      projectile.position[0] = wrap_position(projectile.position[0], x_min, x_max);
+      projectile.position[2] = wrap_position(projectile.position[2], z_min, z_max);
+
+      const translation = Mat4.translation(...projectile.position);
+      const scale = Mat4.scale(projectile.size, projectile.size, projectile.size);
+      projectile.transform = translation.times(scale);
+
+      // Check for collision with asteroids
+      for (let j = asteroids.length - 1; j >= 0; j--) {
+        const asteroid = asteroids[j];
+        if (check_collisions(projectile, asteroid)) {
+          // Remove the projectile and asteroid from their arrays
+          console.log("Hit asteroid!");
+          this.score += 20;
+          this.update_score_lives();
+          console.log("Score:" , this.score);
+          projectiles.splice(i, 1);
+          asteroids.splice(j, 1);
+          if (asteroid.size > min_asteroid_size) {
+            const num_fragments = 2;
+            const fragment_speed = 4;
+            const fragment_size = asteroid.size / 2;
+            const max_rotation_speed = Math.PI / 1.5;
+
+            for (let k = 0; k < num_fragments; k++) {
+              const angle_offset = k * Math.PI + (Math.random() * Math.PI / 2 - Math.PI / 4); // Random angle offset between -45 and 45 degrees for each fragment
+              const fragment_velocity = random_velocity(fragment_speed, angle_offset).plus(asteroid.velocity.times(0.5));
+              const fragment_rotation_speed = Math.random() * max_rotation_speed;
+              const position_offset = vec3(Math.random() * fragment_size - fragment_size / 2, 0, Math.random() * fragment_size - fragment_size / 2);
+              const fragment_position = asteroid.position.copy().plus(position_offset);
+              const fragment = new Asteroid(fragment_position, fragment_velocity, Math.random() * Math.PI, fragment_size);
+              fragment.rotation_speed = fragment_rotation_speed;
+              fragments.push(fragment);
+            }
+            break;
+          }
+        }
+      }
+      // Check for collision with fragments
+      for (let j = fragments.length - 1; j >= 0; j--) {
+        const fragment = fragments[j];
+        if (check_collisions(projectile, fragment)) {
+          // Remove the projectile and asteroid from their arrays
+          this.score += 50;
+          this.update_score_lives();
+          console.log("Score:" , this.score);
+          console.log("Hit fragment!")
+          projectiles.splice(i, 1);
+          fragments.splice(j, 1);
+          break;
+        }
+      }
+      // Check for collision with enemy ships
+      for (let j = enemies.length - 1; j >= 0; j--) {
+        const enemy = enemies[j];
+        if (check_collisions(projectile, enemy)) {
+          console.log("Hit enemy!")
+          this.score += 100;
+          this.update_score_lives();
+          console.log("Score:" , this.score);
+          // Remove the projectile and enemy ship from their arrays
+          projectiles.splice(i, 1);
+          enemies.splice(j, 1);
+          break;
+        }
+      }
+      // If the projectile has been removed due to a collision, skip the rest of the loop
+      if (i >= projectiles.length) {
+        continue;
+      }
+      this.shapes.projectile.draw(context, program_state, projectile.transform, this.materials.proj_mat);
+    }
 
   }
-  animate_lasers(context, program_state, t, lasers) {
 
+  animate_fragments(context, program_state, dt, fragments, spaceship, asteroids) {
+
+    for (let i = 0; i < fragments.length; i++) {
+      const fragment = fragments[i];
+      fragment.position = fragment.position.plus(fragment.velocity.times(dt));
+      fragment.rotation += fragment.rotation_speed * dt;
+
+      fragment.position[0] = wrap_position(fragment.position[0], x_min, x_max);
+      fragment.position[2] = wrap_position(fragment.position[2], z_min, z_max);
+
+      // Update the fragment's transform matrix
+      const translation = Mat4.translation(...fragment.position);
+      const rotation = Mat4.rotation(fragment.rotation, 0, 1, 0);
+      const scale = Mat4.scale(fragment.size, fragment.size, fragment.size);
+      fragment.transform = translation.times(rotation).times(scale);
+
+      // Check for collision with the spaceship
+      if (!spaceship.invincible && check_collisions(spaceship, fragment)) {
+        // Remove the asteroid from the array and decrement the index
+        fragments.splice(i, 1);
+        i--;
+        spaceship.invincible = true;
+        this.lives--;
+        this.update_score_lives();
+        console.log('Asteroid collided with spaceship, Lives: ', this.lives);
+        if (this.lives <= 0) {
+          this.game_over();
+        }
+        continue;
+      }
+      // Check for collision with other fragments
+      for (let j = i + 1; j < fragments.length; j++) {
+        const other_fragment = fragments[j];
+        if (check_collisions(fragment, other_fragment)) {
+          // Swap velocities
+          const temp_velocity = fragment.velocity;
+          fragment.velocity = other_fragment.velocity;
+          other_fragment.velocity = temp_velocity;
+          // Swap rotation speeds
+          const temp_rotation_speed = fragment.rotation_speed;
+          fragment.rotation_speed = other_fragment.rotation_speed;
+          other_fragment.rotation_speed = temp_rotation_speed;
+          // Move the asteroids slightly apart to prevent them from getting stuck
+          fragment.position = fragment.position.plus(fragment.velocity.times(dt));
+          other_fragment.position = other_fragment.position.plus(other_fragment.velocity.times(dt));
+        }
+      }
+      // Check for collision with other asteroids
+      for (let j = i + 1; j < asteroids.length; j++) {
+        const asteroid = asteroids[j];
+        if (check_collisions(fragment, asteroid)) {
+          // Swap velocities
+          const temp_velocity = fragment.velocity;
+          fragment.velocity = asteroid.velocity;
+          asteroid.velocity = temp_velocity;
+
+          // Swap rotation speeds
+          const temp_rotation_speed = fragment.rotation_speed;
+          fragment.rotation_speed = asteroid.rotation_speed;
+          asteroid.rotation_speed = temp_rotation_speed;
+
+          // Move the asteroids slightly apart to prevent them from getting stuck
+          fragment.position = fragment.position.plus(fragment.velocity.times(dt));
+          asteroid.position = asteroid.position.plus(asteroid.velocity.times(dt));
+        }
+      }
+      this.shapes.asteroid.draw(context, program_state, fragment.transform, this.materials.asteroid_mat);
+    }
   }
-
-  check_collisions(spaceship, asteroids, lasers) {
-
-  }
-
-
 
   game_over() {
+    console.log("Game Over");
+    // You can add any additional actions you want to perform when the game is over, such as displaying a message or stopping the game loop.
+    this.end_game = true;
 
   }
 
   reset_game() {
+    // Reset the spaceship's state
+    this.ship = [];
+    // Reset the asteroids array
+    this.asteroids = [];
 
+    // Reset the fragments array
+    this.fragments = [];
+
+    // Reset the projectiles array
+    this.projectiles = [];
+
+    // Reset the enemy_projectiles array
+    this.enemy_projectiles = [];
+
+    // Reset the enemies array
+    this.enemies = [];
+
+    // Reset the player's lives and score
+    this.lives = 5;
+    this.score = 0;
+  }
+
+  update_score_lives() {
+    const event = new CustomEvent('score-lives-update', {
+      detail: {
+        score: this.score,
+        lives: this.lives
+      }
+    });
+    document.dispatchEvent(event);
   }
 
   make_control_panel() {
-    // this.key_triggered_button("Up", ["w"], () => this.game.changeDirection(DIRS.UP));
-    // this.key_triggered_button("Left", ["a"], () => this.game.changeDirection(DIRS.LEFT));
-    // this.key_triggered_button("Down", ["s"], () => this.game.changeDirection(DIRS.DOWN));
-    // this.key_triggered_button("Right", ["d"], () => this.game.changeDirection(DIRS.RIGHT));
-    // this.key_triggered_button("Shoot", [" "], () => this.game.shoot());
+
     this.key_triggered_button("Rotate left", ["a"], () => {
-      // const rotation_matrix = Mat4.rotation(this.ship[0].rotation_speed, 0, 1, 0);
-      // this.ship[0].transform = this.ship[0].transform.times(rotation_matrix);
-      // this.ship[0].forward_direction = rotation_matrix.times(vec4(...this.ship[0].forward_direction, 0)).to3();
       this.ship[0].controls.rotate_left = true;
     }, undefined, () => {
       this.ship[0].controls.rotate_left = false;
     });
 
     this.key_triggered_button("Rotate right", ["d"], () => {
-      // const rotation_matrix = Mat4.rotation(-this.ship[0].rotation_speed, 0, 1, 0);
-      // this.ship[0].transform = this.ship[0].transform.times(rotation_matrix);
-      // this.ship[0].forward_direction = rotation_matrix.times(vec4(...this.ship[0].forward_direction, 0)).to3();
       this.ship[0].controls.rotate_right = true;
     }, undefined, () => {
       this.ship[0].controls.rotate_right = false;
@@ -275,19 +704,39 @@ export class Asteroids3D extends Scene {
       this.ship[0].controls.thrust_forward = false;
     });
 
+    this.key_triggered_button("Shoot", [" "], () => {
+      if (this.ship.length > 0) {
+        this.generate_projectiles(this.ship[0]);
+      }
+    });
+
     this.key_triggered_button("Start", ["y"], () => {
       this.paused = false;
       this.start_game = true;
       this.start_screen = false;
       console.log(this.asteroids)
+
       if (this.asteroids.length === 0) {
-        this.asteroids = this.generate_asteroids();
-        console.log(this.asteroids)
+        for (let i = 0; i < this.max_asteroids; i++) {
+          this.asteroids.push(this.spawn_asteroid());
+        }
+        console.log("Asteroids", this.asteroids)
       }
       if (this.ship.length === 0) {
         this.ship.push(new Spaceship(vec3(0,0,0)));
       }
 
+    });
+    this.key_triggered_button("Restart", ["r"], () => {
+      this.paused = true;
+      this.start_game = false;
+      this.start_screen = true;
+      this.end_game = false;
+      this.reset_game();
+    });
+
+    this.key_triggered_button("Pause", ["p"], () => {
+      this.paused = !this.paused;
     });
 
     this.key_triggered_button("View Environment", ["v"], () => (this.attached = () => this.initial_camera_location));
@@ -303,84 +752,36 @@ export class Asteroids3D extends Scene {
       // Define the global camera and projection matrices, which are stored in program_state.
       program_state.set_camera(this.top_camera_view);
     }
-
     const t = program_state.animation_time / 1000, dt = program_state.animation_delta_time / 1000; // Convert delta time to seconds
 
     program_state.projection_transform = Mat4.perspective(Math.PI / 4, context.width / context.height, 1, 500);
-
-
-
     program_state.lights = [new Light(vec4(10, 10, 10, 1), color(1, 1, 1, 1), 100000)];
 
-    // const ship = new Spaceship(0,0,0);
-    // this.shapes.spaceship.draw(context, program_state, ship.transform, this.materials.ship_metal);
-    // this.spaceship = Mat4.inverse(ship.transform.times(Mat4.translation(0, 1, 5)));
-
-    // const x_left = -(2) * (t % this.x_width) + this.x_max;
-    // let asteroid_transform = Mat4.identity();
-    // asteroid_transform = asteroid_transform.times(Mat4.translation(x_left,0,10))
-    //     .times(Mat4.rotation(.625 * t, -1 ,0,1 ));
-    // this.shapes.asteroid.draw(context, program_state, asteroid_transform, this.materials.asteroid_mat);
-    // this.asteroid = asteroid_transform;
-
-
-    if(this.start_game) {
+    if (this.start_game) {
       this.start_game = false;
     }
 
-    // if (this.asteroids.length > 0 && this.asteroids.length <= this.max_asteroids) {
-    //   this.animate_asteroids(context, program_state, t, this.asteroids);
-    // }
 
-    if (this.ship.length > 0) {
+
+    if(!this.end_game && !this.paused && this.ship.length > 0) {
+      // Draw the score and lives display
+
+      this.draw_spaceship(context, program_state, this.ship[0], dt);
       this.animate_spaceship(this.ship[0], dt);
-      this.animate_asteroids(context, program_state, dt, this.asteroids);
-      this.draw_spaceship(context, program_state, this.ship[0]);
+      this.animate_asteroids(context, program_state, dt, this.asteroids, this.ship[0]);
+      this.animate_fragments(context, program_state, dt, this.fragments, this.ship[0], this.enemies);
+      this.animate_projectiles(context, program_state, dt, this.projectiles, this.asteroids, this.enemies, this.fragments);
+      this.animate_enemies(context, program_state, dt, this.enemies, this.ship[0], this.enemy_projectiles, this.asteroids);
     }
 
+    if(this.end_game) {
+      this.paused = true;
+      // game over screen
+    }
 
-
-    // if (this.paused) {
-    //
-    // }
-    //
-
-
-
-
-    // this.game.getAsteroids().forEach((asteroid) => {
-    //   let asteroid_transform = Mat4.identity()
-    //       .times(Mat4.translation(asteroid.x * 2 , 10, 0))
-    //       .times(Mat4.rotation(0.625 * t, 0, 1, 1));
-    //   this.shapes.asteroid.draw(context, program_state, asteroid_transform, this.materials.asteroid_mat);
-    //   this.asteroids.push(asteroid);
-    // });
-
-
-
-    // render enemies
-    // this.game.getEnemies().forEach((enemy, idx) => {
-    //   let enemy_transform = Mat4.identity().times(
-    //       Mat4.translation(enemy.position.x * 2, enemy.position.y * 2, enemy.position.z * 2)
-    //   );
-    //   this.shapes.alienship.draw(
-    //       context,
-    //       program_state,
-    //       enemy_transform,
-    //       this.materials.ship_metal.override({ color: hex_color("#992828") })
-    //   );
-    // });
-
-
-    // let alienship_transform = Mat4.identity();
-    // alienship_transform = alienship_transform.times(Mat4.translation(-2, 0, -15)).times(Mat4.rotation(60, 0, 1, 0));
-    // this.shapes.alienship.draw(
-    //     context,
-    //     program_state,
-    //     alienship_transform,
-    //     this.materials.ship_metal.override(hex_color("#992828"))
-    // );
-    // this.alienship = alienship_transform;
+    if (this.paused) {
+      // pause screen
+    }
 
     if (this.attached != undefined) {
       program_state.camera_inverse = this.attached().map((x, i) =>
@@ -388,125 +789,6 @@ export class Asteroids3D extends Scene {
       );
     }
   }
-
-
-  // make_asteroids() {
-  //   const min_dist = 10;  // minimum distance between asteroids
-  //   for (let i = 0; i < this.max_asteroids; i++) {
-  //     let x, z;
-  //     let asteroid;
-  //     let valid = false;
-  //     let side;
-  //     let direction;
-  //
-  //     while (!valid) {
-  //       if (Math.random() < 0.5) {
-  //         // Spawn on left or right edge
-  //         x = (Math.random() < 0.5) ? x_min : x_max;
-  //         z = z_min + Math.random() * z_height;
-  //       } else {
-  //         // Spawn on top or bottom edge
-  //         x = x_min + Math.random() * x_width;
-  //         z = (Math.random() < 0.5) ? z_min : z_max;
-  //       }
-  //       // Check if asteroid is at least `min_dist` units away from other asteroids
-  //       valid = true;
-  //       for (let j = 0; j < this.asteroids.length; j++) {
-  //         const dist = Math.sqrt((this.asteroids[j].position[0] - x) ** 2 + (this.asteroids[j].position[2] - z) ** 2);
-  //         if (dist < min_dist) {
-  //           valid = false;
-  //           break;
-  //         }
-  //       }
-  //     }
-  //     // gets what side of screen asteroid is on
-  //     if (x === x_min) {
-  //       side = 'left';
-  //     } else if (x === x_max) {
-  //       side = 'right';
-  //     } else if (z === z_min) {
-  //       side = 'bottom';
-  //     } else {
-  //       side = 'top';
-  //     }
-  //     // sets direction asteroid should go based on side
-  //     switch (side) {
-  //       case 'left':
-  //         direction = ['right', 'rightup', 'rightdown'][Math.floor(Math.random() * 3)];
-  //         break;
-  //       case 'right':
-  //         direction = ['left', 'leftup', 'leftdown'][Math.floor(Math.random() * 3)];
-  //         break;
-  //       case 'bottom':
-  //         direction = ['up', 'leftup', 'rightup'][Math.floor(Math.random() * 3)];
-  //         break;
-  //       case 'top':
-  //         direction = ['down', 'leftdown', 'rightdown'][Math.floor(Math.random() * 3)];
-  //         break;
-  //     }
-  //
-  //     asteroid = new Asteroid(vec3(x, 0, z), side, direction);
-  //     this.asteroids.push(asteroid);
-  //   }
-  // }
-  // animate_asteroids(context, program_state, t, asteroids) {
-  //   const rotate_ang = 0.625;
-  //
-  //   const speed = 1;
-  //   const x_left = -(speed) * (t % x_width) + x_max;
-  //   const x_right = (speed) * (t % x_width) + x_min;
-  //   const z_up = -(speed) * (t % z_height) + z_max;
-  //   const z_down = (speed) * (t % z_height) + z_min;
-  //
-  //   for (let i = 0; i < asteroids.length; i++) {
-  //     let translation;
-  //     let rotate;
-  //
-  //     switch (asteroids[i].direction) {
-  //       case 'left':
-  //         translation = Mat4.translation(x_left , 0, asteroids[i].position[2]);
-  //         rotate = Mat4.rotation(rotate_ang * t, -1 , -1, -1); // rotate right
-  //         break;
-  //       case 'right':
-  //         translation = Mat4.translation(x_right, 0, asteroids[i].position[2]);
-  //         rotate = Mat4.rotation(rotate_ang * t, 1 , 1, 1);   // rotate left
-  //         break;
-  //       case 'up':
-  //         translation = Mat4.translation(asteroids[i].position[0], 0, z_up);
-  //         rotate = Mat4.rotation(rotate_ang * t, -1 , 0, 0);  // rotate up
-  //         break;
-  //       case 'down':
-  //         translation = Mat4.translation(asteroids[i].position[0], 0, z_down);
-  //         rotate = Mat4.rotation(rotate_ang * t, 1 , 0, 0)    // rotate down
-  //         break;
-  //       case 'leftup':
-  //         translation = Mat4.translation(x_left , 0, z_up );
-  //         rotate = Mat4.rotation(rotate_ang * t, -1 , 0, 1);  // rotate leftup
-  //         break;
-  //       case 'leftdown':
-  //         translation = Mat4.translation(x_left, 0, z_down);
-  //         rotate= Mat4.rotation(rotate_ang * t, 1 , 0, 1);    // rotate leftdown
-  //         break;
-  //       case 'rightup':
-  //         translation = Mat4.translation(x_right, 0, z_up);
-  //         rotate = Mat4.rotation(rotate_ang * t, -1 , 0, -1); // rotate rightup
-  //         break;
-  //       case 'rightdown':
-  //         translation = Mat4.translation(x_right, 0, z_down);
-  //         rotate = Mat4.rotation(rotate_ang * t, 1 , 0, -1);   // rotate rightdown
-  //         break;
-  //     }
-  //
-  //     // Apply translation and rotation
-  //     const transform = asteroids[i].transform.times(translation).times(rotate);
-  //
-  //     // Draw the asteroid
-  //     this.shapes.asteroid.draw(context, program_state, transform, this.materials.asteroid_mat);
-  //   }
-  //
-  // }
-
-
 }
 
 class Gouraud_Shader extends Shader {

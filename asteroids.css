@@ -1,0 +1,36 @@
+body {
+    background: dimgray;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+    font-family: 'Space Mono', monospace;
+
+}
+
+.game-container {
+    position: relative;
+    display: inline-block;
+}
+
+.canvas-widget {
+    display: block;
+    width: 1080px;
+    height: 600px;
+    background: DimGray;
+}
+
+#overlay {
+    font-size: 1.5em;
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    color: white;
+}
+
+#overlay div {
+    margin-bottom: 5px;
+}
+
+
