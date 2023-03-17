@@ -1,7 +1,8 @@
 import { defs, tiny } from "./examples/common.js";
 import { Shape_From_File } from "./examples/obj-file-demo.js";
-import { Game, DIRS } from "./game.js";
 import {Text_Line} from "./examples/text-demo.js";
+
+const { Cube, Textured_Phong, Square } = defs;
 
 const {
   Vector,
@@ -35,6 +36,7 @@ function is_out_of_bounds(position, x_min, x_max, z_min, z_max) {
   return position[0] < x_min || position[0] > x_max || position[2] < z_min || position[2] > z_max;
 }
 
+
 function random_edge_position(min, max) {
   const edge = Math.random() > 0.5 ? min : max;
   return edge;
@@ -63,7 +65,7 @@ class Asteroid {
   constructor(position, velocity, rotation, size) {
     this.position = position;
     this.velocity = velocity;
-    this.rotation = rotation
+    this.rotation = rotation;
     this.size = size;
     this.rotation_speed = Math.random() * (4 - 1) + 1;
     this.transform = Mat4.identity();
@@ -71,15 +73,16 @@ class Asteroid {
 }
 class Spaceship {
   constructor(position) {
-    this.position = position
-    this.velocity = vec3(0,0,0);
+    this.position = position;
+    this.velocity = vec3(0, 0, 0);
     this.forward_direction = vec3(0, 0, -1);
     this.rotation = 0;
-    this.controls = {
+    (this.controls = {
       rotate_left: false,
       rotate_right: false,
       thrust_forward: false,
     };
+
     this.transform = Mat4.identity();
     this.size = 1.2;
     this.invincible = false;
@@ -109,16 +112,16 @@ class Enemy {
     this.transform = Mat4.identity();
   }
 }
+
 export class Asteroids3D extends Scene {
   constructor() {
     super();
     // Load the model file:
-
     this.textures = {
       metal: new Texture("assets/metal.jpg"),
       asteroid: new Texture("assets/asteroid.png"),
       background: new Texture("assets/background.png"),
-      startscreen: new Texture("assets/Asteroids3DStart.png"),
+      startscreen: new Texture("assets/game_over.jpg"),
     };
 
     this.shapes = {
@@ -126,20 +129,30 @@ export class Asteroids3D extends Scene {
       enemyship: new Shape_From_File("assets/alienship.obj"),
       asteroid: new Shape_From_File("assets/asteroid.obj"),
       projectile: new defs.Subdivision_Sphere(2),
-      // asteroid: new defs.Subdivision_Sphere(2),
       square: new defs.Square(),
-      text: new Text_Line()
+      asteroid_rock: new (defs.Subdivision_Sphere.prototype.make_flat_shaded_version())(2),
+      torus: new defs.Torus(15, 15),
+      torus2: new defs.Torus(3, 15),
+      universe: new defs.Subdivision_Sphere(4),
+      sphere4: new defs.Subdivision_Sphere(4),
+      circle: new defs.Regular_2D_Polygon(1, 15),
+      sphere1: new defs.Subdivision_Sphere(1),
+      sphere2: new defs.Subdivision_Sphere(2),
+      sphere3: new defs.Subdivision_Sphere(3),
+      ring: new defs.Torus(50, 50),
+      planet1: new (defs.Subdivision_Sphere.prototype.make_flat_shaded_version())(2),
+      moon: new (defs.Subdivision_Sphere.prototype.make_flat_shaded_version())(1),
     };
 
+    this.shapes.asteroid_rock.arrays.texture_coord = this.shapes.asteroid_rock.arrays.texture_coord.map((x) =>
+      x.times(3)
+    );
     const shader = new defs.Fake_Bump_Map(1);
 
     this.materials = {
-      ship_metal: new Material(new Gouraud_Shader(), {
-        ambient: 0.4,
-        diffusivity: 0.3,
-        specularity: 0.7,
-        color: hex_color("#ffffff"),
-        texture: this.textures.metal,
+      ship_metal: new Material(new Textured_Phong(), {
+        ambient: 1,
+        texture: new Texture("assets/rgb.jpg"),
       }),
       enemy_metal: new Material(new Gouraud_Shader(), {
         ambient: 0.4,
@@ -148,18 +161,75 @@ export class Asteroids3D extends Scene {
         color: hex_color("#FF5733"),
         texture: this.textures.metal,
       }),
-      asteroid_mat: new Material(new Gouraud_Shader(), {
-        ambient: 0.4,
-        diffusivity: 0.5,
-        specularity: 0.2,
-        color: hex_color("#808080"),
+      asteroid_mat: new Material(new Textured_Phong(), {
+        ambient: 0.5,
+        specularity: 0.1,
         texture: this.textures.asteroid,
       }),
-      start_screen: new Material(new Gouraud_Shader(), {
-        ambient: 0.5,
-        diffusivity: 0.5,
-        specularity: 0.5,
-        texture: this.textures.startscreen,
+
+      start_screen: new Material(new Textured_Phong(), {
+        ambient: 1,
+        texture: new Texture("assets/Asteroids3DStart.png"),
+      }),
+
+      end_screen: new Material(new Textured_Phong(), {
+        ambient: 1,
+        texture: new Texture("assets/game_over.jpg"),
+      }),
+
+      background: new Material(new Textured_Phong(), {
+        ambient: 1,
+        texture: new Texture("assets/background.png"),
+      }),
+
+      sun: new Material(new Textured_Phong(), {
+        ambient: 1,
+        diffusivity: 1,
+        color: hex_color("#ffffff"),
+        texture: new Texture("assets/background.png")
+      }),
+      planet_1: new Material(new defs.Phong_Shader(), {
+        ambient: 0,
+        diffusivity: 1,
+        specularity: 0,
+        color: hex_color("#E8E2E2"),
+      }),
+      planet_2_Gouraud: new Material(new Gouraud_Shader(), {
+        ambient: 0,
+        diffusivity: 0.1,
+        specularity: 1,
+        color: hex_color("#80FFFF"),
+      }),
+      planet_2_Phong: new Material(new defs.Phong_Shader(), {
+        ambient: 0,
+        diffusivity: 0.1,
+        specularity: 1,
+        color: hex_color("#80FFFF"),
+      }),
+      planet_3: new Material(new defs.Phong_Shader(), {
+        ambient: 0,
+        diffusivity: 1,
+        specularity: 1,
+        color: hex_color("#B08040"),
+      }),
+      planet_3_ring: new Material(new Ring_Shader(), {
+        ambient: 1,
+        diffusivity: 0,
+        color: hex_color("#B08040"),
+        specularity: 0,
+        smoothness: 0,
+      }),
+      planet_4: new Material(new defs.Phong_Shader(), {
+        ambient: 0,
+        color: hex_color("#528AAE"),
+        specularity: 0.9,
+        smoothness: 1,
+      }),
+      planet_4_moon: new Material(new defs.Phong_Shader(), {
+        ambient: 0,
+        diffusivity: 1,
+        color: hex_color("#ffd966"),
+        specularity: 1,
       }),
       proj_mat: new Material(new Gouraud_Shader(), {
         ambient: 0.2,
@@ -193,11 +263,36 @@ export class Asteroids3D extends Scene {
         vec3(0, 1, 0)
     );
 
+
+    this.initial_camera_location = Mat4.look_at(vec3(0, 10, 20), vec3(0, 0, 0), vec3(0, 1, 0));
+
+    // this.start_screen_camera_view = Mat4.look_at(
+    //   vec3(100, 45, 100),
+    //   vec3(0, 0, 0),
+    //   vec3(0, 1, 0)
+    // )
     this.top_camera_view = Mat4.look_at(
-        vec3(0, 45, 5),  // eye position (above view)
-        vec3(0, 0, 0),     // look at the origin (viewport)
-        vec3(0, 10, 0)      // up direction
+      vec3(0, 45, 5), // eye position (above view)
+      vec3(0, 0, 0), // look at the origin (viewport)
+      vec3(0, 10, 0) // up direction
     );
+
+    this.start_camera_view = Mat4.look_at(vec3(10000, 30, 80), vec3(80, 30, 80), vec3(0, 1, 0));
+
+    this.end_camera_view = Mat4.look_at(vec3(5000, 30, 80), vec3(80, 30, 80), vec3(0, 1, 0));
+
+    this.start_screen_transform = Mat4.identity()
+      .times(Mat4.translation(9980, 30, 80, 0))
+      .times(Mat4.rotation(Math.PI / 2, 0, 1, 0))
+      .times(Mat4.scale(10, 10, 10));
+
+    this.end_screen_transform = Mat4.identity()
+      .times(Mat4.translation(4980, 30, 80, 0))
+      .times(Mat4.rotation(Math.PI / 2, 0, 1, 0))
+      .times(Mat4.scale(10, 10, 10));
+
+    this.background_transform = Mat4.identity()
+      .times(Mat4.scale(150, 150, 150));
   }
   draw_spaceship(context, program_state, spaceship, dt) {
     // Update invincibility
@@ -699,10 +794,13 @@ export class Asteroids3D extends Scene {
     });
 
     this.key_triggered_button("Thrust Forward", ["w"], () => {
-      this.ship[0].controls.thrust_forward = true;
-    }, undefined, () => {
-      this.ship[0].controls.thrust_forward = false;
-    });
+        this.ship[0].controls.thrust_forward = true;
+      },
+      undefined,
+      () => {
+        this.ship[0].controls.thrust_forward = false;
+      }
+    );
 
     this.key_triggered_button("Shoot", [" "], () => {
       if (this.ship.length > 0) {
@@ -711,6 +809,7 @@ export class Asteroids3D extends Scene {
     });
 
     this.key_triggered_button("Start", ["y"], () => {
+      this.attached = () => this.top_camera_view;
       this.paused = false;
       this.start_game = true;
       this.start_screen = false;
@@ -721,11 +820,14 @@ export class Asteroids3D extends Scene {
           this.asteroids.push(this.spawn_asteroid());
         }
         console.log("Asteroids", this.asteroids)
+      console.log(this.asteroids);
+      if (this.asteroids.length === 0) {
+        this.asteroids = this.generate_asteroids();
+        console.log(this.asteroids);
       }
       if (this.ship.length === 0) {
-        this.ship.push(new Spaceship(vec3(0,0,0)));
+        this.ship.push(new Spaceship(vec3(0, 0, 0)));
       }
-
     });
     this.key_triggered_button("Restart", ["r"], () => {
       this.paused = true;
@@ -746,16 +848,106 @@ export class Asteroids3D extends Scene {
     this.key_triggered_button("Switch to Top View POV", ["t"], () => (this.attached = () => this.top_camera_view));
   }
 
+  // note: I choose to follow the example animation given in docs/overview.gif where the sun swells and shrinks in 10s.
+  draw_sun(context, program_state) {
+    let t = (this.t = program_state.animation_time / 10000 - parseInt(program_state.animation_time / 10000));
+    const red = hex_color("#ff0000");
+    const white = hex_color("#ffffff");
+    const light_position = vec4(0, -5, 0, 1); // center the point light source to center of the coordinate planes
+
+    // radius swells from 1-3 in 10 sec
+    let radius = 1;
+    if (t < 0.5) {
+      radius += 4 * t;
+    } else {
+      radius = 3 - 4 * (t - 0.5);
+    }
+    let model_transform = Mat4.identity().times(Mat4.translation(0, -5, 0)).times(Mat4.scale(radius, radius, radius));
+
+    let color = red.mix(white, t * 2);
+    if (t >= 0.5) {
+      color = white.mix(red, (t - 0.5) * 2);
+    }
+    program_state.lights = [new Light(light_position, color, 10 ** radius)]; // Use following for Point Light Source with Changing Size; // The parameters of the Light are: position, color, size
+    this.shapes.sphere4.draw(context, program_state, model_transform, this.materials.sun.override({ color: color }));
+
+    return program_state;
+  }
+
+  // transform and draw planets in solar system. The 4th planet is rendered with its moon together.
+  draw_planets(context, program_state, idx) {
+    const radius = 5 + idx * 3;
+    const t = (this.t = program_state.animation_time / 10000 - parseInt(program_state.animation_time / 10000));
+    const rotation_angle = (t * Math.PI) / 0.5 / (idx + 1) + idx; // rotate 360 degrees in 10 seconds
+
+    let model_transform = Mat4.identity()
+      .times(Mat4.rotation(rotation_angle, 0, 1, 0))
+      .times(Mat4.translation(radius, -10, 0));
+
+    if (idx == 0) {
+      this.shapes.planet1.draw(context, program_state, model_transform, this.materials.planet_1);
+      this.planet_1 = Mat4.inverse(model_transform.times(Mat4.translation(0, 0, 5)));
+    } else if (idx == 1 && Math.floor((t * 10) % 2) == 1) {
+      this.shapes.sphere3.draw(context, program_state, model_transform, this.materials.planet_2_Gouraud);
+      this.planet_2 = Mat4.inverse(model_transform.times(Mat4.translation(0, 0, 5)));
+    } else if (idx == 1 && Math.floor((t * 10) % 2) == 0) {
+      this.shapes.sphere3.draw(context, program_state, model_transform, this.materials.planet_2_Phong);
+      this.planet_2 = Mat4.inverse(model_transform.times(Mat4.translation(0, 0, 5)));
+    } else if (idx == 2) {
+      this.shapes.sphere4.draw(context, program_state, model_transform, this.materials.planet_3);
+      this.planet_3 = Mat4.inverse(model_transform.times(Mat4.translation(0, 0, 5)));
+
+      model_transform = model_transform.times(Mat4.scale(3.5, 3.5, 0.01));
+      this.shapes.ring.draw(context, program_state, model_transform, this.materials.planet_3_ring);
+    } else {
+      this.shapes.sphere4.draw(context, program_state, model_transform, this.materials.planet_4);
+
+      this.planet_4 = Mat4.inverse(model_transform.times(Mat4.translation(0, 0, 5)));
+      model_transform = model_transform.times(Mat4.rotation(t * 10, 0, 1, 0)).times(Mat4.translation(-2, 0, 0));
+      this.shapes.moon.draw(context, program_state, model_transform, this.materials.planet_4_moon);
+      this.moon = Mat4.inverse(model_transform.times(Mat4.translation(0, 0, 5)));
+    }
+  }
+
   display(context, program_state) {
     if (!context.scratchpad.controls) {
-      this.children.push(context.scratchpad.controls = new defs.Movement_Controls());
+      this.children.push((context.scratchpad.controls = new defs.Movement_Controls()));
       // Define the global camera and projection matrices, which are stored in program_state.
-      program_state.set_camera(this.top_camera_view);
+      program_state.set_camera(this.start_camera_view);
     }
     const t = program_state.animation_time / 1000, dt = program_state.animation_delta_time / 1000; // Convert delta time to seconds
 
     program_state.projection_transform = Mat4.perspective(Math.PI / 4, context.width / context.height, 1, 500);
     program_state.lights = [new Light(vec4(10, 10, 10, 1), color(1, 1, 1, 1), 100000)];
+
+    const t = program_state.animation_time / 1000,
+      dt = program_state.animation_delta_time / 1000; // Convert delta time to seconds
+
+    program_state.projection_transform = Mat4.perspective(Math.PI / 4, context.width / context.height, 1, 500);
+
+    program_state.lights = [new Light(vec4(10, 10, 10, 1), color(1, 1, 1, 1), 100000)];
+
+    // draw start and end screen
+    this.shapes.square.draw(context, program_state, this.start_screen_transform, this.materials.start_screen);
+    this.shapes.square.draw(context, program_state, this.end_screen_transform, this.materials.end_screen);
+    this.shapes.universe.draw(context, program_state, this.background_transform, this.materials.background);
+    // draw background
+
+    program_state = this.draw_sun(context, program_state);
+    for (let i = 0; i < 4; i++) {
+      this.draw_planets(context, program_state, i);
+    }
+
+    // const ship = new Spaceship(0,0,0);
+    // this.shapes.spaceship.draw(context, program_state, ship.transform, this.materials.ship_metal);
+    // this.spaceship = Mat4.inverse(ship.transform.times(Mat4.translation(0, 1, 5)));
+
+    // const x_left = -(2) * (t % this.x_width) + this.x_max;
+    // let asteroid_transform = Mat4.identity();
+    // asteroid_transform = asteroid_transform.times(Mat4.translation(x_left,0,10))
+    //     .times(Mat4.rotation(.625 * t, -1 ,0,1 ));
+    // this.shapes.asteroid.draw(context, program_state, asteroid_transform, this.materials.asteroid_mat);
+    // this.asteroid = asteroid_transform;
 
     if (this.start_game) {
       this.start_game = false;
@@ -785,10 +977,11 @@ export class Asteroids3D extends Scene {
 
     if (this.attached != undefined) {
       program_state.camera_inverse = this.attached().map((x, i) =>
-          Vector.from(program_state.camera_inverse[i]).mix(x, 0.1)
+        Vector.from(program_state.camera_inverse[i]).mix(x, 0.1)
       );
     }
   }
+
 }
 
 class Gouraud_Shader extends Shader {
@@ -803,11 +996,11 @@ class Gouraud_Shader extends Shader {
   shared_glsl_code() {
     // ********* SHARED CODE, INCLUDED IN BOTH SHADERS *********
     return (
-        ` 
+      ` 
         precision mediump float;
         const int N_LIGHTS = ` +
-        this.num_lights +
-        `;
+      this.num_lights +
+      `;
         uniform float ambient, diffusivity, specularity, smoothness;
         uniform vec4 light_positions_or_vectors[N_LIGHTS], light_colors[N_LIGHTS];
         uniform float light_attenuation_factors[N_LIGHTS];
@@ -855,8 +1048,8 @@ class Gouraud_Shader extends Shader {
   vertex_glsl_code() {
     // ********* VERTEX SHADER *********
     return (
-        this.shared_glsl_code() +
-        `
+      this.shared_glsl_code() +
+      `
             attribute vec3 position, normal;                          
             // Position is expressed in object coordinates.
             
@@ -881,8 +1074,8 @@ class Gouraud_Shader extends Shader {
     // A fragment is a pixel that's overlapped by the current triangle.
     // Fragments affect the final image or get discarded due to depth.
     return (
-        this.shared_glsl_code() +
-        `
+      this.shared_glsl_code() +
+      `
             void main(){                                                           
                 // Compute fragment color
                 gl_FragColor = vertex_color; 
@@ -903,14 +1096,14 @@ class Gouraud_Shader extends Shader {
   send_gpu_state(gl, gpu, gpu_state, model_transform) {
     // send_gpu_state():  Send the state of our whole drawing context to the GPU.
     const O = vec4(0, 0, 0, 1),
-        camera_center = gpu_state.camera_transform.times(O).to3();
+      camera_center = gpu_state.camera_transform.times(O).to3();
     gl.uniform3fv(gpu.camera_center, camera_center);
     // Use the squared scale trick from "Eric's blog" instead of inverse transpose matrix:
     const squared_scale = model_transform
-        .reduce((acc, r) => {
-          return acc.plus(vec4(...r).times_pairwise(r));
-        }, vec4(0, 0, 0, 0))
-        .to3();
+      .reduce((acc, r) => {
+        return acc.plus(vec4(...r).times_pairwise(r));
+      }, vec4(0, 0, 0, 0))
+      .to3();
     gl.uniform3fv(gpu.squared_scale, squared_scale);
     // Send the current matrices to the shader.  Go ahead and pre-compute
     // the products we'll need of the of the three special matrices and just
@@ -925,7 +1118,7 @@ class Gouraud_Shader extends Shader {
     if (!gpu_state.lights.length) return;
 
     const light_positions_flattened = [],
-        light_colors_flattened = [];
+      light_colors_flattened = [];
     for (let i = 0; i < 4 * gpu_state.lights.length; i++) {
       light_positions_flattened.push(gpu_state.lights[Math.floor(i / 4)].position[i % 4]);
       light_colors_flattened.push(gpu_state.lights[Math.floor(i / 4)].color[i % 4]);
@@ -933,8 +1126,8 @@ class Gouraud_Shader extends Shader {
     gl.uniform4fv(gpu.light_positions_or_vectors, light_positions_flattened);
     gl.uniform4fv(gpu.light_colors, light_colors_flattened);
     gl.uniform1fv(
-        gpu.light_attenuation_factors,
-        gpu_state.lights.map((l) => l.attenuation)
+      gpu.light_attenuation_factors,
+      gpu_state.lights.map((l) => l.attenuation)
     );
   }
 
@@ -957,5 +1150,61 @@ class Gouraud_Shader extends Shader {
 
     this.send_material(context, gpu_addresses, material);
     this.send_gpu_state(context, gpu_addresses, gpu_state, model_transform);
+  }
+}
+
+class Ring_Shader extends Shader {
+  update_GPU(context, gpu_addresses, graphics_state, model_transform, material) {
+    // update_GPU():  Defining how to synchronize our JavaScript's variables to the GPU's:
+    const [P, C, M] = [graphics_state.projection_transform, graphics_state.camera_inverse, model_transform],
+      PCM = P.times(C).times(M);
+    context.uniformMatrix4fv(
+      gpu_addresses.model_transform,
+      false,
+      Matrix.flatten_2D_to_1D(model_transform.transposed())
+    );
+    context.uniformMatrix4fv(
+      gpu_addresses.projection_camera_model_transform,
+      false,
+      Matrix.flatten_2D_to_1D(PCM.transposed())
+    );
+  }
+
+  shared_glsl_code() {
+    // ********* SHARED CODE, INCLUDED IN BOTH SHADERS *********
+    return `
+        precision mediump float;
+        varying vec4 point_position;
+        varying vec4 center;
+        `;
+  }
+
+  vertex_glsl_code() {
+    // ********* VERTEX SHADER *********
+    return (
+      this.shared_glsl_code() +
+      `
+        attribute vec3 position;
+        uniform mat4 model_transform;
+        uniform mat4 projection_camera_model_transform;
+        
+        void main(){
+          center = model_transform * vec4(0, 0, 0, 1);
+          point_position = model_transform * vec4(position, 1);
+          gl_Position = projection_camera_model_transform * vec4(position, 1);
+        }`
+    );
+  }
+
+  fragment_glsl_code() {
+    // ********* FRAGMENT SHADER *********
+    return (
+      this.shared_glsl_code() +
+      `
+        void main(){
+          float multiplier = sin(18.01 * distance(point_position.xyz, center.xyz));
+          gl_FragColor = multiplier * vec4(0.6078, 0.3961, 0.098, 1.0);
+        }`
+    );
   }
 }
