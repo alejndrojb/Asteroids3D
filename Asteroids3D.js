@@ -77,7 +77,7 @@ class Spaceship {
     this.velocity = vec3(0, 0, 0);
     this.forward_direction = vec3(0, 0, -1);
     this.rotation = 0;
-    (this.controls = {
+    this.controls = {
       rotate_left: false,
       rotate_right: false,
       thrust_forward: false,
@@ -120,8 +120,9 @@ export class Asteroids3D extends Scene {
     this.textures = {
       metal: new Texture("assets/metal.jpg"),
       asteroid: new Texture("assets/asteroid.png"),
-      background: new Texture("assets/background.png"),
-      startscreen: new Texture("assets/game_over.jpg"),
+      background: new Texture("assets/background.jpeg"),
+      startscreen: new Texture("assets/Asteroids3DStart.png"),
+      endscreen: new Texture("assets/game_over.jpg")
     };
 
     this.shapes = {
@@ -151,42 +152,46 @@ export class Asteroids3D extends Scene {
 
     this.materials = {
       ship_metal: new Material(new Textured_Phong(), {
-        ambient: 1,
+        ambient: 0.2,
+        specularity: 0.2,
+        color: hex_color("#003876"),
         texture: new Texture("assets/rgb.jpg"),
       }),
-      enemy_metal: new Material(new Gouraud_Shader(), {
-        ambient: 0.4,
+      enemy_metal: new Material(new Textured_Phong(), {
+        ambient: 0.1,
         diffusivity: 0.3,
-        specularity: 0.7,
+        specularity: 0.4,
         color: hex_color("#FF5733"),
         texture: this.textures.metal,
       }),
       asteroid_mat: new Material(new Textured_Phong(), {
-        ambient: 0.5,
+        ambient: 0.4,
+        diffusivity: 0.2,
         specularity: 0.1,
+        color: hex_color("#545454"),
         texture: this.textures.asteroid,
       }),
 
       start_screen: new Material(new Textured_Phong(), {
         ambient: 1,
-        texture: new Texture("assets/Asteroids3DStart.png"),
+        texture: this.textures.startscreen,
       }),
 
       end_screen: new Material(new Textured_Phong(), {
         ambient: 1,
-        texture: new Texture("assets/game_over.jpg"),
+        texture: this.textures.endscreen,
       }),
 
       background: new Material(new Textured_Phong(), {
         ambient: 1,
-        texture: new Texture("assets/background.png"),
+        texture: this.textures.background,
       }),
 
       sun: new Material(new Textured_Phong(), {
         ambient: 1,
         diffusivity: 1,
         color: hex_color("#ffffff"),
-        texture: new Texture("assets/background.png")
+        texture: this.textures.background
       }),
       planet_1: new Material(new defs.Phong_Shader(), {
         ambient: 0,
@@ -231,11 +236,11 @@ export class Asteroids3D extends Scene {
         color: hex_color("#ffd966"),
         specularity: 1,
       }),
-      proj_mat: new Material(new Gouraud_Shader(), {
-        ambient: 0.2,
+      proj_mat: new Material(new defs.Phong_Shader(), {
+        ambient: 0.5,
         diffusivity: 0.3,
         specularity: 0.4,
-        color: hex_color("#FF5733"),
+        color: hex_color("#ffffff"),
       }),
     };
 
@@ -470,7 +475,7 @@ export class Asteroids3D extends Scene {
     }
   }
 
-  animate_enemies(context, program_state, dt, enemies, spaceship, enemy_projectiles) {
+  animate_enemies(context, program_state, dt, enemies, spaceship, enemy_projectiles, asteroids) {
     //Increment spawn timer
     this.spawn_timer += dt;
 
@@ -533,7 +538,6 @@ export class Asteroids3D extends Scene {
         if (!spaceship.invincible && check_collisions(enemy, spaceship)) {
           console.log("Spaceship collided with an enemy ship!");
           enemies.splice(i, 1);
-
           // decrease spaceship lives or end the game
           spaceship.invincible = true;
           this.lives--;
@@ -543,6 +547,23 @@ export class Asteroids3D extends Scene {
             this.game_over();
           }
         }
+        // Check for collision between enemy ship and asteroids
+        for (let j = 0; j < asteroids.length; j++) {
+          const asteroid = asteroids[j];
+          if (check_collisions(enemy, asteroid)) {
+            console.log("Enemy ship collided with an asteroid!");
+            // Destroy the enemy ship and asteroid (or handle collision as desired)
+            // Swap velocities
+            asteroid.velocity = enemy.velocity;
+            // Move the asteroids slightly apart to prevent them from getting stuck
+            asteroid.position = asteroid.position.plus(asteroid.velocity.times(dt));
+            enemies.splice(i, 1);
+            i--;
+            // Break from the inner loop to avoid checking the destroyed enemy against other asteroids
+            break;
+          }
+        }
+
       }
 
       // Update and draw enemy projectiles
@@ -809,21 +830,17 @@ export class Asteroids3D extends Scene {
     });
 
     this.key_triggered_button("Start", ["y"], () => {
-      this.attached = () => this.top_camera_view;
       this.paused = false;
       this.start_game = true;
       this.start_screen = false;
       console.log(this.asteroids)
+
 
       if (this.asteroids.length === 0) {
         for (let i = 0; i < this.max_asteroids; i++) {
           this.asteroids.push(this.spawn_asteroid());
         }
         console.log("Asteroids", this.asteroids)
-      console.log(this.asteroids);
-      if (this.asteroids.length === 0) {
-        this.asteroids = this.generate_asteroids();
-        console.log(this.asteroids);
       }
       if (this.ship.length === 0) {
         this.ship.push(new Spaceship(vec3(0, 0, 0)));
@@ -853,6 +870,7 @@ export class Asteroids3D extends Scene {
     let t = (this.t = program_state.animation_time / 10000 - parseInt(program_state.animation_time / 10000));
     const red = hex_color("#ff0000");
     const white = hex_color("#ffffff");
+    const orange = hex_color("#D14009")
     const light_position = vec4(0, -5, 0, 1); // center the point light source to center of the coordinate planes
 
     // radius swells from 1-3 in 10 sec
@@ -862,13 +880,13 @@ export class Asteroids3D extends Scene {
     } else {
       radius = 3 - 4 * (t - 0.5);
     }
-    let model_transform = Mat4.identity().times(Mat4.translation(0, -5, 0)).times(Mat4.scale(radius, radius, radius));
+    let model_transform = Mat4.identity().times(Mat4.translation(0, -100, 0)).times(Mat4.scale(6,6,6))
 
-    let color = red.mix(white, t * 2);
+    let color = orange.mix(white, t * 2);
     if (t >= 0.5) {
-      color = white.mix(red, (t - 0.5) * 2);
+      color = white.mix(orange, (t - 0.5) * 2);
     }
-    program_state.lights = [new Light(light_position, color, 10 ** radius)]; // Use following for Point Light Source with Changing Size; // The parameters of the Light are: position, color, size
+    // program_state.lights = [new Light(light_position, white, 10 ** radius)]; // Use following for Point Light Source with Changing Size; // The parameters of the Light are: position, color, size
     this.shapes.sphere4.draw(context, program_state, model_transform, this.materials.sun.override({ color: color }));
 
     return program_state;
@@ -876,13 +894,13 @@ export class Asteroids3D extends Scene {
 
   // transform and draw planets in solar system. The 4th planet is rendered with its moon together.
   draw_planets(context, program_state, idx) {
-    const radius = 5 + idx * 3;
-    const t = (this.t = program_state.animation_time / 10000 - parseInt(program_state.animation_time / 10000));
+    const radius = 8 + idx * 4;
+    const t = (this.t = program_state.animation_time / 100000 - parseInt(program_state.animation_time / 100000));
     const rotation_angle = (t * Math.PI) / 0.5 / (idx + 1) + idx; // rotate 360 degrees in 10 seconds
 
     let model_transform = Mat4.identity()
       .times(Mat4.rotation(rotation_angle, 0, 1, 0))
-      .times(Mat4.translation(radius, -10, 0));
+      .times(Mat4.translation(radius, -30, 0));
 
     if (idx == 0) {
       this.shapes.planet1.draw(context, program_state, model_transform, this.materials.planet_1);
@@ -913,51 +931,32 @@ export class Asteroids3D extends Scene {
     if (!context.scratchpad.controls) {
       this.children.push((context.scratchpad.controls = new defs.Movement_Controls()));
       // Define the global camera and projection matrices, which are stored in program_state.
-      program_state.set_camera(this.start_camera_view);
+
     }
     const t = program_state.animation_time / 1000, dt = program_state.animation_delta_time / 1000; // Convert delta time to seconds
 
     program_state.projection_transform = Mat4.perspective(Math.PI / 4, context.width / context.height, 1, 500);
     program_state.lights = [new Light(vec4(10, 10, 10, 1), color(1, 1, 1, 1), 100000)];
 
-    const t = program_state.animation_time / 1000,
-      dt = program_state.animation_delta_time / 1000; // Convert delta time to seconds
-
-    program_state.projection_transform = Mat4.perspective(Math.PI / 4, context.width / context.height, 1, 500);
-
-    program_state.lights = [new Light(vec4(10, 10, 10, 1), color(1, 1, 1, 1), 100000)];
-
-    // draw start and end screen
-    this.shapes.square.draw(context, program_state, this.start_screen_transform, this.materials.start_screen);
-    this.shapes.square.draw(context, program_state, this.end_screen_transform, this.materials.end_screen);
-    this.shapes.universe.draw(context, program_state, this.background_transform, this.materials.background);
     // draw background
-
-    program_state = this.draw_sun(context, program_state);
-    for (let i = 0; i < 4; i++) {
-      this.draw_planets(context, program_state, i);
+    if (this.start_screen) {
+      // draw start screen
+      this.shapes.square.draw(context, program_state, this.start_screen_transform, this.materials.start_screen);
+      program_state.set_camera(this.start_camera_view);
     }
 
-    // const ship = new Spaceship(0,0,0);
-    // this.shapes.spaceship.draw(context, program_state, ship.transform, this.materials.ship_metal);
-    // this.spaceship = Mat4.inverse(ship.transform.times(Mat4.translation(0, 1, 5)));
-
-    // const x_left = -(2) * (t % this.x_width) + this.x_max;
-    // let asteroid_transform = Mat4.identity();
-    // asteroid_transform = asteroid_transform.times(Mat4.translation(x_left,0,10))
-    //     .times(Mat4.rotation(.625 * t, -1 ,0,1 ));
-    // this.shapes.asteroid.draw(context, program_state, asteroid_transform, this.materials.asteroid_mat);
-    // this.asteroid = asteroid_transform;
-
     if (this.start_game) {
+      program_state.set_camera(this.top_camera_view);
       this.start_game = false;
     }
 
-
-
     if(!this.end_game && !this.paused && this.ship.length > 0) {
       // Draw the score and lives display
-
+      this.shapes.universe.draw(context, program_state, this.background_transform, this.materials.background);
+      this.draw_sun(context, program_state);
+      for (let i = 0; i < 4; i++) {
+        this.draw_planets(context, program_state, i);
+      }
       this.draw_spaceship(context, program_state, this.ship[0], dt);
       this.animate_spaceship(this.ship[0], dt);
       this.animate_asteroids(context, program_state, dt, this.asteroids, this.ship[0]);
@@ -967,6 +966,9 @@ export class Asteroids3D extends Scene {
     }
 
     if(this.end_game) {
+      // draw end screen
+      this.shapes.square.draw(context, program_state, this.end_screen_transform, this.materials.end_screen);
+      program_state.set_camera(this.end_camera_view);
       this.paused = true;
       // game over screen
     }
