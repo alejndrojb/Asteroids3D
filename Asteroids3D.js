@@ -791,6 +791,7 @@ export class Asteroids3D extends Scene {
     console.log("Game Over");
     // You can add any additional actions you want to perform when the game is over, such as displaying a message or stopping the game loop.
     this.end_game = true;
+    this.update_score_lives();
   }
 
   reset_game() {
