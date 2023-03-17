@@ -441,7 +441,7 @@ export class Asteroids3D extends Scene {
   }
 
   // Update the asteroids' position, orientation, and velocity
-  animate_asteroids(context, program_state, dt, asteroids, spaceship) {
+  animate_asteroids(context, program_state, dt, asteroids, spaceship, fragments) {
     for (let i = 0; i < asteroids.length; i++) {
       const asteroid = asteroids[i];
       asteroid.position = asteroid.position.plus(asteroid.velocity.times(dt));
@@ -486,6 +486,26 @@ export class Asteroids3D extends Scene {
           // Move the asteroids slightly apart to prevent them from getting stuck
           asteroid.position = asteroid.position.plus(asteroid.velocity.times(dt));
           other_asteroid.position = other_asteroid.position.plus(other_asteroid.velocity.times(dt));
+        }
+      }
+
+      // Check for collision with other asteroids
+      for (let j = i + 1; j < fragments.length; j++) {
+        const fragment = fragments[j];
+        if (check_collisions(fragment, asteroid)) {
+          // Swap velocities
+          const temp_velocity = asteroid.velocity;
+          asteroid.velocity = fragment.velocity;
+          fragment.velocity = temp_velocity;
+
+          // Swap rotation speeds
+          const temp_rotation_speed = asteroid.rotation_speed;
+          asteroid.rotation_speed = fragment.rotation_speed;
+          fragment.rotation_speed = temp_rotation_speed;
+
+          // Move the asteroids slightly apart to prevent them from getting stuck
+          asteroid.position = asteroid.position.plus(asteroid.velocity.times(dt));
+          fragment.position = fragment.position.plus(fragment.velocity.times(dt));
         }
       }
 
@@ -874,6 +894,7 @@ export class Asteroids3D extends Scene {
       this.paused = false;
       this.start_game = true;
       this.start_screen = false;
+      this.update_score_lives();
       console.log(this.asteroids);
 
       if (this.asteroids.length === 0) {
@@ -999,8 +1020,8 @@ export class Asteroids3D extends Scene {
       }
       this.draw_spaceship(context, program_state, this.ship[0], dt);
       this.animate_spaceship(this.ship[0], dt);
-      this.animate_asteroids(context, program_state, dt, this.asteroids, this.ship[0]);
-      this.animate_fragments(context, program_state, dt, this.fragments, this.ship[0], this.enemies);
+      this.animate_asteroids(context, program_state, dt, this.asteroids, this.ship[0], this.fragments);
+      this.animate_fragments(context, program_state, dt, this.fragments, this.ship[0], this.asteroids);
       this.animate_projectiles(
         context,
         program_state,
