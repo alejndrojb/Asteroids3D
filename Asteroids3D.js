@@ -164,7 +164,7 @@ export class Asteroids3D extends Scene {
         color: hex_color("#003876"),
       }),
       enemy_metal: new Material(new Textured_Phong(), {
-        ambient: 0.1,
+        ambient: 0.3,
         diffusivity: 0.3,
         specularity: 0.4,
         color: hex_color("#FF5733"),
