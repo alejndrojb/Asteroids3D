@@ -4,12 +4,14 @@ This is a spin off the classic arcade game Asteroids. This game features an imme
 
 **Getting Started**
 
-This project was made with an assignment as a starter template; it's the same process to get up and running. Using VSCode, install the Live Server extension, and just click "Go Live" to launch the game instance. Once loaded, the controls for the game will appear on the control panel.
 Open project folder, run the project file "index.html" on a local server. Once the game is open, use the control panel to play the game.
 
 **Game controls**
 
 To start the game, press 'y' which will switch to the game view and initilize the 3D environment. 
+
 To control spaceship, press 'w' to thrust forward, 'a' to rotate right, 'd' to rotate left, and 'space' to shoot lasers
+
 To switch perspectives, press 'g' to switch to the spaceship POV, 'v' to view the environment, and 't' to switch back to the original top view.
+
 To pause the game, press 'p' and to reset the game, press 'r'.
